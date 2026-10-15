@@ -1,0 +1,1290 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#f7f6f2">
+<title>Agentti 6</title>
+<!--
+  Agentti 6 – käyttöliittymä (vaihe 7, arkkitehtuuri luvut 10 ja 19).
+  Yksi tiedosto, ei rakennusvaihetta, ei ulkoisia kirjastoja. Data luetaan ja
+  kirjoitetaan yksityisestä reposta GitHubin REST-rajapinnalla Jarnon omalla
+  fine-grained-tunnisteella, joka on vain tämän selaimen localStorage-muistissa.
+  Tämä tiedosto ei sisällä dataa eikä tunnistetta.
+-->
+<style>
+:root{
+  --bg:#f7f6f2;--pinta:#fff;--pinta2:#f1efe8;--teksti:#1f1e1c;--toissij:#5f5e5a;--himmea:#888780;
+  --raja:rgba(0,0,0,.12);--raja2:rgba(0,0,0,.22);--korostus:#185fa5;
+  --tr-bg:#fcebeb;--tr-tx:#791f1f;--va-bg:#faeeda;--va-tx:#633806;--oe-bg:#c0dd97;--oe-tx:#173404;
+  --pi-bg:#eaf3de;--pi-tx:#27500a;--se-bg:#f1efe8;--se-tx:#444441;
+  --punainen:#a32d2d;--vihrea:#3b6d11;--ka50:#378add;--ka200:#ba7517;--kurssi:#1f1e1c;
+  --sade:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-teema="vaalea"]){
+  --bg:#1a1a19;--pinta:#242423;--pinta2:#2e2e2c;--teksti:#ecebe6;--toissij:#b4b2a9;--himmea:#888780;
+  --raja:rgba(255,255,255,.12);--raja2:rgba(255,255,255,.24);--korostus:#85b7eb;
+  --tr-bg:#501313;--tr-tx:#f7c1c1;--va-bg:#412402;--va-tx:#fac775;--oe-bg:#27500a;--oe-tx:#c0dd97;
+  --pi-bg:#173404;--pi-tx:#97c459;--se-bg:#2c2c2a;--se-tx:#d3d1c7;
+  --punainen:#f09595;--vihrea:#97c459;--kurssi:#ecebe6;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--teksti);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--pinta);border:1px solid var(--raja2);border-radius:8px;padding:7px 12px;cursor:pointer;min-height:36px}
+button:hover{background:var(--pinta2)}
+button.ensisij{background:var(--teksti);color:var(--bg);border-color:var(--teksti)}
+button.vaara{color:var(--punainen)}
+button.linkki{border:0;background:none;padding:4px 0;min-height:0;color:var(--korostus)}
+input,select,textarea{background:var(--pinta);border:1px solid var(--raja2);border-radius:8px;padding:7px 10px;width:100%;min-height:38px}
+label{display:block;font-size:13px;color:var(--toissij);margin:10px 0 4px}
+.p:empty{display:none}
+body.ulos nav.valilehdet{display:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+header{position:sticky;top:0;z-index:5;background:var(--pinta);border-bottom:1px solid var(--raja);padding:10px 16px 0}
+.ylarivi{display:flex;align-items:center;gap:10px}
+.ylarivi h1{font-size:17px;font-weight:600;margin:0;flex:1}
+.ikoni{min-height:32px;padding:4px 9px;font-size:15px}
+nav.valilehdet{display:flex;gap:18px;margin-top:6px;overflow-x:auto}
+nav.valilehdet a{padding:8px 0;color:var(--toissij);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent}
+nav.valilehdet a.on{color:var(--teksti);border-color:var(--teksti);font-weight:600}
+main{max-width:1280px;margin:0 auto}
+#lista,#osake{background:var(--pinta);min-height:50vh}
+#osake{display:none}
+body.nayta-osake #lista{display:none}
+body.nayta-osake #osake{display:block}
+@media (min-width:960px){
+  main{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:16px;padding:16px}
+  #lista,#osake{display:block!important;border:1px solid var(--raja);border-radius:12px;overflow:hidden}
+  #osake{position:sticky;top:110px;max-height:calc(100vh - 170px);overflow-y:auto}
+  .vain-puhelin{display:none!important}
+}
+.p{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;white-space:nowrap;vertical-align:1px}
+.s-trendi_rikki{background:var(--tr-bg);color:var(--tr-tx)}.s-varoitus{background:var(--va-bg);color:var(--va-tx)}
+.s-osto_ehdokas{background:var(--oe-bg);color:var(--oe-tx)}.s-pida{background:var(--pi-bg);color:var(--pi-tx)}
+.s-seuraa,.s-tyhja{background:var(--se-bg);color:var(--se-tx)}
+.v-korkea{background:var(--tr-bg);color:var(--tr-tx)}.v-keski{background:var(--va-bg);color:var(--va-tx)}.v-matala{background:var(--se-bg);color:var(--se-tx)}
+.rivi{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 16px;border-bottom:1px solid var(--raja);cursor:pointer;text-decoration:none;color:inherit}
+.rivi:hover{background:var(--pinta2)}
+.rivi.valittu{background:var(--pinta2);box-shadow:inset 3px 0 0 var(--teksti)}
+.t{font-weight:600}
+.tk{color:var(--toissij);font-size:12px;font-weight:400;white-space:nowrap}
+.m{color:var(--toissij);font-size:13px}
+.oik{text-align:right;font-variant-numeric:tabular-nums}
+.piste{font-weight:600;font-size:17px}
+.neg{color:var(--punainen)}.pos{color:var(--vihrea)}
+.ryhma{display:flex;justify-content:space-between;gap:8px;padding:10px 16px;background:var(--pinta2);border-bottom:1px solid var(--raja);cursor:pointer;font-weight:600;user-select:none}
+.ryhma .m{font-weight:400;text-align:right}
+.osio{padding:12px 16px;border-bottom:1px solid var(--raja)}
+.osio h2{font-size:15px;margin:0 0 8px}
+.kortit{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.kortti{background:var(--pinta2);border-radius:var(--sade);padding:7px 9px}
+.kortti .t{font-size:16px}
+.palkki{height:6px;background:var(--pinta2);border-radius:3px;overflow:hidden;margin-top:3px}
+.palkki i{display:block;height:100%;background:var(--toissij)}
+.oa{margin-bottom:10px;cursor:pointer}
+.oa-otsikko{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px}
+.mittarit{display:none;margin:6px 0 2px;font-size:13px}
+.oa.auki .mittarit{display:block}
+.mittarit table{width:100%;border-collapse:collapse}
+.mittarit td{padding:3px 0;border-bottom:1px dashed var(--raja)}
+.mittarit td:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums;padding-left:8px;white-space:nowrap}
+.napit{display:flex;flex-wrap:wrap;gap:8px}
+.tyhja{padding:20px 16px;color:var(--toissij)}
+.tyhja .t{color:var(--teksti)}
+footer{max-width:1280px;margin:0 auto;padding:10px 16px 28px;font-size:12px;color:var(--toissij)}
+footer .vika{color:var(--punainen)}
+#modaali{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:20;align-items:flex-end;justify-content:center}
+#modaali.auki{display:flex}
+.ikkuna{background:var(--pinta);width:100%;max-width:560px;max-height:92vh;overflow-y:auto;border-radius:14px 14px 0 0;padding:16px 16px 24px}
+@media (min-width:600px){#modaali{align-items:center}.ikkuna{border-radius:14px}}
+.ikkuna h2{font-size:17px;margin:0 0 4px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ikkuna p{margin:8px 0}
+.virhe{color:var(--punainen);font-size:13px;margin-top:6px;min-height:1em}
+.vahvistus{background:var(--pinta2);border-radius:var(--sade);padding:10px 12px;margin:10px 0;font-size:14px}
+.kaksi{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+#ilmoitus{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--teksti);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;max-width:calc(100% - 32px);display:none;z-index:30}
+#ilmoitus.nakyy{display:block}
+.kaavio{position:relative}
+.kaavio svg{width:100%;height:auto;display:block;touch-action:pan-y}
+.kaavio .vihje{position:absolute;top:0;left:0;background:var(--pinta);border:1px solid var(--raja2);border-radius:8px;padding:4px 8px;font-size:12px;pointer-events:none;display:none;white-space:nowrap}
+.selite span{margin-right:10px;white-space:nowrap}
+.yhtio h3{font-size:14px;margin:14px 0 4px}
+.yhtio p{margin:4px 0;font-size:14px}
+.lataa{padding:24px 16px;color:var(--toissij)}
+</style>
+</head>
+<body>
+<header>
+  <div class="ylarivi">
+    <h1>Agentti 6</h1>
+    <span id="markkina" class="p s-seuraa" title="Markkinaympäristö ja ostokynnys"></span>
+    <button class="ikoni" id="paivita-sivu" title="Lataa data uudelleen" aria-label="Lataa data uudelleen">⟳</button>
+    <button class="ikoni" id="asetukset" title="Asetukset" aria-label="Asetukset">⚙</button>
+  </div>
+  <nav class="valilehdet" id="valilehdet">
+    <a href="#/salkku" data-v="salkku">Salkku</a>
+    <a href="#/seuranta" data-v="seuranta">Seuranta</a>
+    <a href="#/ehdotukset" data-v="ehdotukset">Ehdotukset</a>
+  </nav>
+</header>
+<main>
+  <section id="lista" aria-label="Lista"><div class="lataa">Ladataan…</div></section>
+  <section id="osake" aria-label="Osake"></section>
+</main>
+<footer id="alareuna"></footer>
+<div id="modaali" role="dialog" aria-modal="true"><div class="ikkuna" id="ikkuna"></div></div>
+<div id="ilmoitus" role="status"></div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------- asetukset
+// Tunniste, repo ja haara ovat vain tämän selaimen muistissa. ?api=… ohittaa
+// rajapinnan osoitteen (testaus paikallisella jäljitelmällä).
+const AS = {
+  get token() { return lsLue("a6.token") || ""; },
+  get repo() { return lsLue("a6.repo") || ""; },
+  get haara() { return lsLue("a6.haara") || "main"; },
+  get api() { return new URLSearchParams(location.search).get("api") || "https://api.github.com"; },
+};
+function lsLue(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsKirjoita(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+
+// ---------------------------------------------------------------- GitHub
+class ApiVirhe extends Error { constructor(viesti, status) { super(viesti); this.status = status; } }
+
+async function api(metodi, polku, runko, accept) {
+  const r = await fetch(`${AS.api}/repos/${AS.repo}${polku}`, {
+    method: metodi, cache: "no-store",
+    headers: {
+      "Authorization": `Bearer ${AS.token}`,
+      "Accept": accept || "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(runko ? { "Content-Type": "application/json" } : {}),
+    },
+    body: runko ? JSON.stringify(runko) : undefined,
+  });
+  if (!r.ok) {
+    let viesti = `${r.status}`;
+    try { viesti += ": " + (await r.json()).message; } catch (e) {}
+    if (r.status === 401) viesti = "tunniste ei kelpaa tai on vanhentunut (401)";
+    if (r.status === 403 || r.status === 404 && metodi !== "GET") viesti += polku.includes("/actions/")
+      ? " – tarkista tunnisteen oikeudet (Actions: Read and write)"
+      : " – tarkista tunnisteen oikeudet (Contents: Read and write)";
+    throw new ApiVirhe(viesti, r.status);
+  }
+  if (r.status === 204) return null;
+  return accept && accept.includes("raw") ? r.text() : r.json();
+}
+const polkuUrl = p => p.split("/").map(encodeURIComponent).join("/");
+
+// Raakateksti; null jos tiedostoa ei ole.
+async function lueRaw(polku, ref) {
+  try {
+    return await api("GET", `/contents/${polkuUrl(polku)}?ref=${encodeURIComponent(ref || AS.haara)}`,
+      null, "application/vnd.github.raw+json");
+  } catch (e) { if (e.status === 404) return null; throw e; }
+}
+async function lueJson(polku, ref) { const t = await lueRaw(polku, ref); return t == null ? null : JSON.parse(t); }
+async function lueKansio(polku) {
+  try { return await api("GET", `/contents/${polkuUrl(polku)}?ref=${encodeURIComponent(AS.haara)}`); }
+  catch (e) { if (e.status === 404) return []; throw e; }
+}
+
+// Yksi tallennus = yksi commit (Git Data -rajapinta, voi koskea useaan
+// tiedostoon). muutos(lue) lukee tiedostot uusimmasta commitista ja palauttaa
+// {polku: uusi sisältö} tai null (ei tallenneta). Jos GitHub Actions ehti
+// pushata väliin, koko muutos tehdään uudelleen uusimman päälle (3 yritystä).
+async function tallenna(viesti, muutos) {
+  for (let yritys = 1; yritys <= 3; yritys++) {
+    const ref = await api("GET", `/git/ref/heads/${encodeURIComponent(AS.haara)}`);
+    const pohja = ref.object.sha;
+    const commit = await api("GET", `/git/commits/${pohja}`);
+    const tiedostot = await muutos(p => lueRaw(p, pohja));
+    if (!tiedostot) return null;
+    const puu = await api("POST", "/git/trees", {
+      base_tree: commit.tree.sha,
+      tree: Object.entries(tiedostot).map(([path, content]) => ({ path, mode: "100644", type: "blob", content })),
+    });
+    const uusi = await api("POST", "/git/commits", { message: `ui: ${viesti}`, tree: puu.sha, parents: [pohja] });
+    try {
+      await api("PATCH", `/git/refs/heads/${encodeURIComponent(AS.haara)}`, { sha: uusi.sha, force: false });
+      return tiedostot;
+    } catch (e) {
+      if (e.status !== 422 || yritys === 3) throw e;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- tila
+const S = {
+  latest: null, salkku: null, seuranta: null, ehdotukset: null, hylatyt: null, kaupat: [], jono: null,
+  kulut: [], analyysit: new Set(), porssit: [], cfg: {}, kaaviot: {}, analyysiCache: {},
+  virheet: [], ladattu: null, ryhmatAuki: lueRyhmatAuki(), haku: "",
+};
+const NIMET = { trendi_rikki: "Trendi rikki", varoitus: "Varoitus", osto_ehdokas: "Osto-ehdokas", pida: "Pidä", seuraa: "Seuraa" };
+const JARJ = { trendi_rikki: 0, varoitus: 1, osto_ehdokas: 2, pida: 3, seuraa: 4 };
+const VAKAVUUS = { korkea: 0, keski: 1, matala: 2 };
+const OSA_ALUEET = { tekninen: "Tekninen", yhtio: "Yhtiö", ennusteet: "Ennusteet ja arvostus", toimiala: "Toimiala",
+  sisapiiri: "Sisäpiiri ja rahastot", vallihauta: "Vallihauta", hype: "Hype-potentiaali" };
+const MITTARIT = {
+  weinstein_vaihe: ["Weinstein-vaihe", ""], kurssi_vs_ka50_pct: ["Kurssi vs 50 pv ka", "%"],
+  kurssi_vs_ka200_pct: ["Kurssi vs 200 pv ka", "%"], rs_3kk: ["RS indeksiin 3 kk", "%-yks."],
+  rs_6kk: ["RS indeksiin 6 kk", "%-yks."], lapimurto_ika_pv: ["Läpimurrosta", "pv"],
+  etaisyys_huipusta_pct: ["Etäisyys 3 kk huipusta", "%"],
+  liikevaihto_kasvu_q_pct: ["Liikevaihdon kasvu, kvartaali", "%"], liikevaihto_kasvu_vuosi_pct: ["Liikevaihdon kasvu, tilikausi", "%"],
+  eps_kasvu_q_pct: ["EPS-kasvu, kvartaali", "%"], eps_kasvu_vuosi_pct: ["EPS-kasvu, tilikausi", "%"],
+  bruttokate_pct: ["Bruttokate", "%"], bruttokate_muutos_pp: ["Bruttokatteen muutos", "%-yks."],
+  fcf_marginaali_pct: ["FCF-marginaali", "%"], nettovelka_ebitda: ["Nettovelka / EBITDA", "×"], rule_of_40: ["Rule of 40", ""],
+  eps_revisio_4vk_pct: ["EPS-ennusteiden muutos 4 vk", "%"], eps_revisio_3kk_pct: ["EPS-ennusteiden muutos 3 kk", "%"],
+  tulosyllatys_pct: ["Tulosyllätys", "%"], pe_persentiili: ["P/E oman historian persentiili", ""],
+  ev_rev_persentiili: ["EV/Rev oman historian persentiili", ""],
+  ryhma_rs_1kk: ["Ryhmän RS 1 kk", "%-yks."], ryhma_rs_3kk: ["Ryhmän RS 3 kk", "%-yks."], ryhma_yli_ka50_pct: ["Ryhmästä yli 50 pv ka:n", "%"],
+  netto_pct_markkina_arvosta: ["Sisäpiirin netto markkina-arvosta", "%"], ostajia: ["Sisäpiirin ostajia 3 kk", ""],
+  instituutiot_muutos_pct: ["Instituutioiden omistusmuutos", "%"], lyhyeksi_pct: ["Lyhyeksimyynti", "%"],
+  claude: ["Clauden arvio", ""], claude_teema: ["Clauden teema-arvio", ""], uutiset_suhde: ["Uutismäärä 4 vk vs 6 kk", "×"],
+  volyymi_suhde: ["Volyymi 20 pv vs 6 kk", "×"],
+};
+
+// ---------------------------------------------------------------- muotoilu
+const nf = (x, d = 1) => x == null || Number.isNaN(x) ? "ei tietoa"
+  : new Intl.NumberFormat("fi-FI", { minimumFractionDigits: d, maximumFractionDigits: d }).format(x);
+const pros = (x, d = 1) => x == null ? "ei tietoa" : (x > 0 ? "+" : "") + nf(x, d) + " %";
+const kurssiD = x => x == null ? 2 : Math.abs(x) < 1 ? 4 : Math.abs(x) >= 1000 ? 0 : 2;
+const hinta = x => nf(x, kurssiD(x));
+const pvmFi = s => { if (!s) return "ei tietoa"; const [y, k, p] = s.slice(0, 10).split("-"); return `${+p}.${+k}.${y}`; };
+const pvmLyh = s => { if (!s) return ""; const [, k, p] = s.slice(0, 10).split("-"); return `${+p}.${+k}.`; };
+const eur = x => x == null ? "ei tietoa" : Math.abs(x) >= 1e9 ? nf(x / 1e9, 1) + " mrd €"
+  : Math.abs(x) >= 1e6 ? nf(x / 1e6, 1) + " M€" : Math.abs(x) >= 1e3 ? nf(x / 1e3, 0) + " t€" : nf(x, 0) + " €";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const tiedostonimi = t => t.replace(/[^A-Za-z0-9\-_.]/g, "_");
+const tanaan = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+const paiviaJaljella = s => s ? Math.round((new Date(s + "T12:00:00") - new Date(tanaan() + "T12:00:00")) / 864e5) : null;
+const helsinki = iso => new Intl.DateTimeFormat("fi-FI", { timeZone: "Europe/Helsinki", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })
+  .format(new Date(iso)).replace(" klo", "").replace(/(\d+\.\d+\.)\s*/, "$1 klo ");
+
+// ---------------------------------------------------------------- lataus
+async function lataaKaikki() {
+  S.virheet = [];
+  const yrita = async (nimi, f) => { try { return await f(); } catch (e) { S.virheet.push(`${nimi}: ${e.message}`); return null; } };
+  const [latest, salkku, seuranta, ehdotukset, hylatyt, kaupat, jono, kulut, uusin, indeksit, agentti] = await Promise.all([
+    yrita("data/latest.json", () => lueJson("data/latest.json")),
+    yrita("listat/salkku.json", () => lueJson("listat/salkku.json")),
+    yrita("listat/seuranta.json", () => lueJson("listat/seuranta.json")),
+    yrita("listat/ehdotukset.json", () => lueJson("listat/ehdotukset.json")),
+    yrita("listat/hylatyt.json", () => lueJson("listat/hylatyt.json")),
+    yrita("listat/kaupat.jsonl", () => lueRaw("listat/kaupat.jsonl")),
+    yrita("data/analyysijono.json", () => lueJson("data/analyysijono.json")),
+    yrita("loki/kulut.jsonl", () => lueRaw("loki/kulut.jsonl")),
+    yrita("analyysit/uusin", () => lueKansio("analyysit/uusin")),
+    yrita("config/vertailuindeksit.yaml", () => lueRaw("config/vertailuindeksit.yaml")),
+    yrita("config/agentti.yaml", () => lueRaw("config/agentti.yaml")),
+  ]);
+  Object.assign(S, { latest, salkku, seuranta, ehdotukset, hylatyt, jono });
+  S.kaupat = jsonl(kaupat);
+  S.kulut = jsonl(kulut);
+  S.analyysit = new Set((uusin || []).filter(f => f.type === "file").map(f => f.name));
+  S.analyysiCache = {};
+  S.porssit = lueporssit(indeksit || "");
+  S.cfg = {
+    kulukatto: yamlLuku(agentti, "kulukatto_eur_kk"), hylkaysKk: yamlLuku(agentti, "hylkays_esto_kk"),
+    latestMaxH: yamlLuku(agentti, "latest_max_ika_h"), arvioMax: yamlLuku(agentti, "arvio_max_eur_per_analyysi"),
+  };
+  S.ladattu = new Date();
+}
+function jsonl(teksti) {
+  return (teksti || "").split("\n").filter(r => r.trim()).map(r => { try { return JSON.parse(r); } catch (e) { return null; } }).filter(Boolean);
+}
+function yamlLuku(teksti, avain) {
+  const m = (teksti || "").match(new RegExp(`^\\s*${avain}:\\s*([0-9.]+)`, "m"));
+  return m ? Number(m[1]) : null;
+}
+function lueporssit(teksti) {
+  const out = [];
+  for (const r of teksti.split("\n")) {
+    const m = r.match(/^\s*"([^"]*)":\s*\{\s*nimi:\s*"([^"]+)".*?valuutta:\s*([A-Za-z]+)/);
+    if (m && !/vain tilinpäätös/.test(m[2])) out.push({ liite: m[1], nimi: m[2], valuutta: m[3] });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- rivit
+function L(t) { return S.latest?.osakkeet?.[t]; }
+function salkunRivit() { return (S.salkku?.osakkeet || []).map(o => ({ ...o, lista: "salkku" })); }
+function seurannanRivit() {
+  const salkussa = new Set((S.salkku?.osakkeet || []).map(o => o.ticker));
+  return (S.seuranta?.osakkeet || []).filter(o => !salkussa.has(o.ticker)).map(o => ({ ...o, lista: "seuranta" }));
+}
+function kaikkiRivit() { return [...salkunRivit(), ...seurannanRivit()]; }
+function etsiRivi(t) { return kaikkiRivit().find(o => o.ticker === t) || (S.ehdotukset?.osakkeet || []).map(o => ({ ...o, lista: "ehdotukset" })).find(o => o.ticker === t); }
+function signaaliArvo(t) { return L(t)?.signaali?.arvo || null; }
+function piste(t) {
+  const p = L(t)?.pisteet;
+  if (!p) return null;
+  return p.kokonais ?? null;
+}
+function tekninenPiste(t) { return L(t)?.pisteet?.osa_alueet?.tekninen?.piste ?? null; }
+// Vakavin ensin: signaalin mukaan; Trendi rikki- ja Varoitus-ryhmissä
+// eniten korkeita varoituksia ja heikoin piste ensin, muissa paras piste ensin.
+function jarjesta(rivit) {
+  const pp = t => piste(t) ?? tekninenPiste(t) ?? -1;
+  const korkeat = t => (L(t)?.varoitukset || []).filter(v => v.vakavuus === "korkea").length;
+  return rivit.sort((a, b) => {
+    const sa = signaaliArvo(a.ticker), sb = signaaliArvo(b.ticker);
+    const ero = (JARJ[sa] ?? 9) - (JARJ[sb] ?? 9);
+    if (ero) return ero;
+    if (sa === "trendi_rikki" || sa === "varoitus")
+      return korkeat(b.ticker) - korkeat(a.ticker) || pp(a.ticker) - pp(b.ticker) || a.ticker.localeCompare(b.ticker);
+    return pp(b.ticker) - pp(a.ticker) || a.ticker.localeCompare(b.ticker);
+  });
+}
+function pilleri(arvo) {
+  return arvo ? `<span class="p s-${arvo}">${esc(NIMET[arvo] || arvo)}</span>` : `<span class="p s-tyhja">ei signaalia</span>`;
+}
+function stopRikki(l) { return l?.stop?.taso != null && l?.kurssi?.paatos != null && l.kurssi.paatos < l.stop.taso; }
+
+// Yhtiön nimi näkyvänä, ticker pienellä perässä (Jarno 13.10.2026, sama kuin sähköpostissa)
+function nimiHtml(ticker, nimi) {
+  return `<span class="t">${esc(nimi || ticker)}</span>${nimi && nimi !== ticker ? ` <span class="tk">${esc(ticker)}</span>` : ""}`;
+}
+
+function riviHtml(o, tila) {
+  const l = L(o.ticker);
+  const valittu = tila.osake === o.ticker ? " valittu" : "";
+  const href = `#/osake/${encodeURIComponent(o.ticker)}`;
+  if (!l) {
+    return `<a class="rivi${valittu}" href="${href}"><div>${nimiHtml(o.ticker, o.nimi)} <span class="p s-tyhja">uusi</span>
+      <div class="m">odottaa seuraavaa ajoa</div></div><div class="oik"></div></a>`;
+  }
+  const k = l.kurssi || {};
+  const osat = [];
+  if (k.paatos != null) osat.push(`${hinta(k.paatos)} ${esc(k.valuutta || l.valuutta || "")} <span class="${k.muutos_1pv_pct < 0 ? "neg" : "pos"}">${pros(k.muutos_1pv_pct)}</span>`);
+  if (l.tila === "puuttuu" || l.tila === "virhe") osat.push(`<span class="neg">${l.tila === "virhe" ? "virhe" : "data puuttuu"}: ${esc((l.virhe || "").slice(0, 80))}</span>`);
+  if (o.lista === "salkku" && o.ostohinta != null && k.paatos != null) {
+    const tuotto = (k.paatos / o.ostohinta - 1) * 100;
+    osat.push(`tuotto <span class="${tuotto < 0 ? "neg" : "pos"}">${pros(tuotto)}</span>`);
+  }
+  if (l.stop?.taso != null) osat.push(`stop ${hinta(l.stop.taso)}${stopRikki(l) ? ' <span class="neg">rikki</span>' : ""}`);
+  if (l.tila === "osittain") osat.push("osittain");
+  const tp = paiviaJaljella(l.tulospaiva);
+  if (tp != null && tp >= 0 && tp <= 14) osat.push(`tulos ${pvmLyh(l.tulospaiva)}`);
+  if (l.epailyttava?.length) osat.push('<span class="neg">epäilyttävä</span>');
+  const p = piste(o.ticker);
+  const var_ = (l.varoitukset || []).length;
+  const oikea = p != null ? `<div class="piste">${nf(p, 0)}</div>`
+    : tekninenPiste(o.ticker) != null ? `<div class="piste">–</div><div class="m">tekn. ${nf(tekninenPiste(o.ticker), 0)}</div>` : `<div class="piste">–</div>`;
+  return `<a class="rivi${valittu}" href="${href}"><div>${nimiHtml(o.ticker, o.nimi || l.nimi)} ${pilleri(l.signaali?.arvo)}
+    <div class="m">${osat.join(" · ")}</div></div><div class="oik">${oikea}${var_ ? `<div class="m">${var_} var.</div>` : ""}</div></a>`;
+}
+
+// ---------------------------------------------------------------- näkymät
+function naytaSalkku(tila) {
+  const rivit = jarjesta(salkunRivit());
+  let h = rivit.map(o => riviHtml(o, tila)).join("");
+  if (!rivit.length) h = `<div class="tyhja"><div class="t">Salkku on tyhjä</div>Lisää osake tai kirjaa osto.</div>`;
+  h += `<div class="osio napit"><button data-toiminto="lisaa" data-lista="salkku">+ Lisää osake</button>
+    <button data-toiminto="kauppa">Kirjaa kauppa</button></div>`;
+  return h;
+}
+function naytaSeuranta(tila) {
+  const rivit = seurannanRivit();
+  const ryhmat = [...(S.seuranta?.ryhmat || [])];
+  for (const o of rivit) if (!ryhmat.includes(o.ryhma)) ryhmat.push(o.ryhma);
+  const q = S.haku.trim().toLowerCase();
+  let h = `<div class="osio"><input id="haku" type="search" placeholder="Hae tickeriä tai nimeä" value="${esc(S.haku)}" autocomplete="off"></div>`;
+  for (const r of ryhmat) {
+    let jasenet = jarjesta(rivit.filter(o => o.ryhma === r));
+    if (q) jasenet = jasenet.filter(o => o.ticker.toLowerCase().includes(q) || (o.nimi || "").toLowerCase().includes(q));
+    if (q && !jasenet.length) continue;
+    const auki = q || S.ryhmatAuki.has(r) || (tila.osake && jasenet.some(o => o.ticker === tila.osake));
+    const lask = {};
+    for (const o of jasenet) { const s = signaaliArvo(o.ticker) || "tyhja"; lask[s] = (lask[s] || 0) + 1; }
+    const yht = ["osto_ehdokas", "pida", "varoitus", "trendi_rikki"].filter(s => lask[s])
+      .map(s => s === "osto_ehdokas" ? `<span class="p s-osto_ehdokas">${lask[s]} osto-ehd.</span>` : `${lask[s]} ${{ pida: "pidä", varoitus: "var.", trendi_rikki: "rikki" }[s]}`).join(" · ");
+    h += `<div class="ryhma" data-ryhma="${esc(r)}" role="button" aria-expanded="${!!auki}"><span>${esc(r)} · ${jasenet.length}</span><span class="m">${yht} ${auki ? "▾" : "▸"}</span></div>`;
+    if (auki) h += jasenet.map(o => riviHtml(o, tila)).join("");
+  }
+  h += `<div class="osio napit"><button data-toiminto="lisaa" data-lista="seuranta">+ Lisää osake</button></div>`;
+  return h;
+}
+function naytaEhdotukset(tila) {
+  const ehd = S.ehdotukset?.osakkeet || [];
+  let h = "";
+  if (!ehd.length) {
+    h += `<div class="tyhja"><div class="t">Seula ei ole vielä käytössä</div>Ehdotukset tulevat viikkoajosta, kun ehdotusseula otetaan käyttöön (vaihe 10). Jokaisella ehdotuksella on silloin napit Seurantaan, Salkkuun ja Hylkää.</div>`;
+  } else {
+    for (const e of ehd) {
+      const l = L(e.ticker);
+      const sig = l?.signaali?.arvo || e.signaali;
+      const p = l?.pisteet?.kokonais ?? e.piste;
+      h += `<div class="rivi" style="cursor:default"><div><a href="#/osake/${encodeURIComponent(e.ticker)}" style="color:inherit;text-decoration:none">${nimiHtml(e.ticker, e.nimi)}</a> ${pilleri(sig)}
+        <div class="m">${[e.ryhma ? esc(e.ryhma) : "", e.lisatty ? "ehdotettu " + pvmLyh(e.lisatty) : ""].filter(Boolean).join(" · ")}</div>
+        <div class="napit" style="margin-top:6px"><button data-toiminto="ehd-seuranta" data-t="${esc(e.ticker)}">Seurantaan</button>
+        <button data-toiminto="ehd-salkku" data-t="${esc(e.ticker)}">Salkkuun</button>
+        <button data-toiminto="ehd-hylkaa" data-t="${esc(e.ticker)}" class="vaara">Hylkää</button></div></div>
+        <div class="oik"><div class="piste">${p != null ? nf(p, 0) : "–"}</div></div></div>`;
+    }
+  }
+  const omat = jarjesta(kaikkiRivit().filter(o => signaaliArvo(o.ticker) === "osto_ehdokas"));
+  h += `<div class="ryhma" style="cursor:default"><span>Osto-ehdokkaat omilta listoiltasi</span><span class="m">${omat.length}</span></div>`;
+  h += omat.length ? omat.map(o => riviHtml(o, tila)).join("") : `<div class="tyhja">Ei osto-ehdokkaita tällä hetkellä.</div>`;
+  return h;
+}
+
+function naytaOsake(t) {
+  const o = etsiRivi(t);
+  const l = L(t);
+  if (!o && !l) return `<div class="tyhja"><div class="t">${esc(t)} ei ole listoilla</div><a href="#/salkku">Takaisin</a></div>`;
+  const nimi = o?.nimi || l?.nimi || t;
+  const lista = o?.lista || l?.lista;
+  const listanNimi = { salkku: "Salkku", seuranta: "Seuranta", ehdotukset: "Ehdotukset" }[lista] || "";
+  let h = `<div class="osio"><a href="#/${lista || "salkku"}" class="m vain-puhelin" style="text-decoration:none">← ${esc(listanNimi)}</a>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:4px">
+      <div><span class="t" style="font-size:19px">${esc(nimi || t)}</span> <span class="m">${nimi && nimi !== t ? esc(t) : ""}${o?.porssi ? (nimi && nimi !== t ? " · " : "") + esc(o.porssi) : ""}</span>
+      <div class="m">${esc(listanNimi)}${(o?.ryhma || l?.ryhma) ? " · " + esc(o?.ryhma || l?.ryhma) : ""}${l?.tyyppi === "etp" ? " · ETP: vain tekninen signaali" : ""}</div></div>
+      <div class="oik"><div style="font-size:26px;font-weight:600">${piste(t) != null ? nf(piste(t), 0) : "–"}</div>
+      <div class="m">${piste(t) != null ? "/ 100" : tekninenPiste(t) != null ? "tekn. " + nf(tekninenPiste(t), 0) : ""}</div></div></div>`;
+  if (!l) {
+    h += `<p class="m">Osake on lisätty listalle, mutta sille ei ole vielä dataa. Se lasketaan seuraavassa päivä- tai viikkoajossa. Jos tunnus on väärä, osake näkyy silloin terveysrivillä puuttuvana.</p></div>`;
+    return h + toimintonapit(o, l);
+  }
+  const sig = l.signaali || {};
+  h += `<div style="margin-top:8px">${pilleri(sig.arvo)} <span class="m">${sig.alkaen ? pvmLyh(sig.alkaen) + " alkaen" : ""}${sig.edellinen ? " · ennen " + esc(NIMET[sig.edellinen] || sig.edellinen) : ""}</span></div>`;
+  if (sig.syy) h += `<div class="m" style="margin-top:4px">Syy: ${esc(sig.syy)}</div>`;
+  if (l.pisteet?.data_puutteellinen) h += `<div class="m neg">Data puutteellinen: ${nf(l.pisteet.puuttuva_paino_pct, 0)} % painosta ei tietoa</div>`;
+  if (l.tila === "puuttuu" || l.tila === "virhe") h += `<div class="m neg" style="margin-top:4px">${l.tila === "virhe" ? "Virhe" : "Data puuttuu"}: ${esc(l.virhe || "")}</div>`;
+  if (l.epailyttava?.length) h += `<div class="m neg" style="margin-top:4px">Data epäilyttävä: ${esc(l.epailyttava.join("; "))}</div>`;
+  const k = l.kurssi || {};
+  const tp = paiviaJaljella(l.tulospaiva);
+  h += `<div class="kortit">
+    <div class="kortti"><div class="m">Kurssi ${pvmLyh(k.pvm)}</div><div class="t">${hinta(k.paatos)}</div><div class="m ${k.muutos_1pv_pct < 0 ? "neg" : "pos"}">${pros(k.muutos_1pv_pct)} <span class="m">${esc(k.valuutta || "")}</span></div></div>
+    <div class="kortti"><div class="m">Stop</div><div class="t ${stopRikki(l) ? "neg" : ""}">${l.stop?.taso != null ? hinta(l.stop.taso) : "–"}</div><div class="m">${esc(l.stop?.peruste || "ei stopia")}</div></div>
+    <div class="kortti"><div class="m">Tulos</div><div class="t">${l.tulospaiva ? pvmLyh(l.tulospaiva) : "–"}</div><div class="m">${tp != null ? (tp >= 0 ? tp + " pv" : "mennyt") : "ei tiedossa"}</div></div></div>`;
+  if (lista === "salkku" && o) {
+    const tuotto = o.ostohinta != null && k.paatos != null ? (k.paatos / o.ostohinta - 1) * 100 : null;
+    h += `<div class="m" style="margin-top:8px">Omistus: ${o.maara != null ? nf(o.maara, o.maara % 1 ? 4 : 0) + " kpl" : "määrä ei tiedossa"} · ostohinta ${o.ostohinta != null ? hinta(o.ostohinta) : "ei tiedossa"}${o.ostopvm ? " (" + pvmFi(o.ostopvm) + ")" : ""}${tuotto != null ? ` · tuotto <span class="${tuotto < 0 ? "neg" : "pos"}">${pros(tuotto)}</span>` : ""}</div>`;
+  }
+  h += `</div>`;
+
+  const varoitukset = [...(l.varoitukset || [])].sort((a, b) => (VAKAVUUS[a.vakavuus] ?? 9) - (VAKAVUUS[b.vakavuus] ?? 9));
+  if (varoitukset.length) {
+    h += `<div class="osio"><h2>Varoitukset</h2>` + varoitukset.map(v =>
+      `<div class="m" style="margin-bottom:5px"><span class="p v-${esc(v.vakavuus)}">${esc(v.vakavuus)}</span> <span style="color:var(--teksti)">${esc(v.nimi || v.tyyppi)}</span>: ${esc(v.selite || "")} <span class="m">(${pvmLyh(v.alkaen)})</span></div>`).join("") + `</div>`;
+  }
+
+  h += `<div class="osio"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h2>12 kk</h2>
+    <span class="m selite"><span style="color:var(--kurssi)">━ kurssi</span><span style="color:var(--ka50)">━ ka50</span><span style="color:var(--ka200)">━ ka200</span>${l.stop?.taso != null ? '<span style="color:var(--punainen)">┅ stop</span>' : ""}</span></div>
+    <div class="kaavio" id="kaavio" data-t="${esc(t)}"><div class="m">Ladataan kaaviota…</div></div></div>`;
+
+  const oa = l.pisteet?.osa_alueet;
+  if (oa) {
+    h += `<div class="osio"><h2>Osa-alueet <span class="m" style="font-weight:400">(napauta: mittarit)</span></h2>`;
+    for (const [avain, nimiOa] of Object.entries(OSA_ALUEET)) {
+      const a = oa[avain];
+      if (!a) continue;
+      const tilaTxt = a.tila === "ei_tietoa" ? "ei tietoa" + (["vallihauta"].includes(avain) ? " (Clauden arvio puuttuu)" : "") : a.tila === "osittain" ? "osittain" : "";
+      const mit = Object.entries(a.mittarit || {}).map(([mk, mv]) => {
+        const [mn, yks] = MITTARIT[mk] || [mk, ""];
+        const arvo = mv.arvo == null ? "ei tietoa" : (typeof mv.arvo === "number" ? nf(mv.arvo, Number.isInteger(mv.arvo) ? 0 : 2) : esc(mv.arvo)) + (yks && mv.arvo != null ? " " + yks : "");
+        return `<tr><td>${esc(mn)}</td><td>${arvo}</td><td>${mv.piste == null ? "–" : nf(mv.piste, 0) + " p"}</td><td class="m">${mv.paino} %</td></tr>`;
+      }).join("");
+      h += `<div class="oa" role="button"><div class="oa-otsikko"><div>${esc(nimiOa)} <span class="m">${a.paino} %${tilaTxt ? " · " + tilaTxt : ""}</span></div>
+        <div class="oik t">${a.piste == null ? "–" : nf(a.piste, 0)}</div></div><div class="palkki"><i style="width:${Math.max(0, Math.min(100, a.piste || 0))}%"></i></div>
+        <div class="mittarit"><table>${mit}</table></div></div>`;
+    }
+    h += `</div>`;
+  }
+
+  h += `<div class="osio" id="analyysi"><h2>Analyysi</h2>${analyysiHtml(t)}</div>`;
+  h += `<div class="osio"><button data-toiminto="yhtio" data-t="${esc(t)}">Yhtiö: toiminta ja tila →</button></div>`;
+  return h + toimintonapit(o, l);
+}
+
+function toimintonapit(o, l) {
+  if (!o) return "";
+  const t = esc(o.ticker);
+  let h = `<div class="osio napit">`;
+  if (o.lista !== "ehdotukset") h += `<button data-toiminto="analyysi" data-t="${t}">Päivitä analyysi</button>`;
+  if (o.lista !== "ehdotukset") h += `<button data-toiminto="kauppa" data-t="${t}">Kirjaa kauppa</button>`;
+  if (o.lista === "salkku") h += `<button data-toiminto="omistus" data-t="${t}">Ostohinta ja määrä</button>`;
+  if (o.lista !== "ehdotukset") h += `<button data-toiminto="siirra" data-t="${t}">Siirrä…</button><button data-toiminto="poista" data-t="${t}" class="vaara">Poista</button>`;
+  return h + `</div>`;
+}
+
+function analyysiHtml(t) {
+  const jonossa = (S.jono?.jono || []).filter(r => r.ticker === t);
+  const jonoTxt = jonossa.length ? `<div class="m">Jonossa: ${jonossa.map(r => esc(r.syy) + " " + pvmLyh(r.lisatty)).join(", ")}</div>` : "";
+  const nimi = tiedostonimi(t) + ".json";
+  const pyynto = pyyntoHtml(t);
+  if (!S.analyysit.has(nimi)) return `<p class="m">Ei vielä analyysiä. Claude analysoi osakkeen viikkoajossa ryhmävuorollaan, tai voit pyytää sen Päivitä analyysi -napilla.</p>${pyynto}${jonoTxt}`;
+  const a = S.analyysiCache[t];
+  if (a === undefined) {
+    lueJson(`analyysit/uusin/${nimi}`).then(d => { S.analyysiCache[t] = d; const el = document.getElementById("analyysi"); if (el && nykyinenOsake() === t) el.innerHTML = `<h2>Analyysi</h2>${analyysiHtml(t)}`; })
+      .catch(e => { S.analyysiCache[t] = { _virhe: e.message }; });
+    return `<p class="m">Ladataan analyysiä…</p>`;
+  }
+  if (!a || a._virhe) return `<p class="m neg">Analyysiä ei voitu lukea${a?._virhe ? ": " + esc(a._virhe) : ""}.</p>${jonoTxt}`;
+  const lista = xs => (xs || []).map(x => `<li>${esc(typeof x === "string" ? x : x.teksti || JSON.stringify(x))}</li>`).join("");
+  const h3 = teksti => `<h3 style="font-size:14px;margin:10px 0 2px">${teksti}</h3>`;
+  const mm = a.mika_muuttui || {};
+  const muutos = mm.pisteen_muutos != null ? ` (piste ${mm.pisteen_muutos > 0 ? "+" : ""}${nf(mm.pisteen_muutos)} edellisestä analyysistä ${pvmFi(mm.edellinen_pvm)})` : "";
+  const oa = Object.entries(OSA_ALUEET).filter(([k]) => a.osa_alueet?.[k]).map(([k, n]) => `<li><b>${n}</b> ${esc(a.osa_alueet[k])}</li>`).join("");
+  const laad = a.laadullinen || {};
+  const laadRivit = [
+    laad.vallihauta ? `<li><b>Vallihauta ${laad.vallihauta.piste}/100</b> ${esc(laad.vallihauta.perustelu)}</li>` : "",
+    laad.hypeteema ? `<li><b>Teema ${laad.hypeteema.piste}/100</b> ${esc(laad.hypeteema.perustelu)}${laad.hypeteema.katalyytit?.length ? " Katalyytit: " + laad.hypeteema.katalyytit.map(esc).join("; ") + "." : ""}</li>` : "",
+  ].join("");
+  return `<p class="m">${pvmFi(a.pvm)} · ${a.syvyys === "syva" ? "syväanalyysi" : "viikkoanalyysi"} · ${esc(a.malli || "")}${a.sanamaara ? " · " + a.sanamaara + " sanaa" : ""}</p>
+    <p><b>${esc(a.johtopaatos || "")}</b></p>
+    ${a.signaali_ehdotus?.perustelu ? `<p>${esc(a.signaali_ehdotus.perustelu)}</p>` : ""}
+    ${a.signaali_ero ? `<p class="m">${esc(a.signaali_ero)} (säännöt voittavat)</p>` : ""}
+    ${mm.syyt ? h3("Mikä on muuttunut" + esc(muutos)) + `<ul>${lista(mm.syyt)}</ul>` : ""}
+    ${a.miksi_nousu_jatkuu ? h3("Miksi nousu voi jatkua") + `<ul>${lista(a.miksi_nousu_jatkuu)}</ul>` : ""}
+    ${a.mika_voi_menna_pieleen ? h3("Mikä voi mennä pieleen") + `<ul>${lista(a.mika_voi_menna_pieleen)}</ul>` : ""}
+    ${oa ? h3("Osa-alueet") + `<ul>${oa}</ul>` : ""}
+    ${laadRivit ? h3("Clauden laadullinen arvio") + `<ul>${laadRivit}</ul>` : ""}
+    ${a.seurattavat ? h3("Mitä seurata") + `<ul>${lista(a.seurattavat)}</ul>` : ""}
+    ${a.lahteet?.length ? `<p class="m">Lähteet: ${a.lahteet.map(esc).join(" · ")}</p>` : ""}${pyynto}${jonoTxt}`;
+}
+
+// ---------------------------------------------------------------- kaavio
+async function piirraKaavio(t) {
+  const el = document.getElementById("kaavio");
+  if (!el || el.dataset.t !== t) return;
+  let k = S.kaaviot[t];
+  if (k === undefined) {
+    try { k = S.kaaviot[t] = await lueJson(`data/kaaviot/${tiedostonimi(t)}.json`); }
+    catch (e) { el.innerHTML = `<div class="m neg">Kaaviota ei voitu lukea: ${esc(e.message)}</div>`; return; }
+  }
+  const el2 = document.getElementById("kaavio");
+  if (!el2 || el2.dataset.t !== t) return;
+  if (!k || !k.pvm?.length) { el2.innerHTML = `<div class="m">Kaaviodataa ei ole.</div>`; return; }
+  // Mitoitus todellisen leveyden mukaan, jotta teksti ei veny puhelimessa.
+  const W = Math.max(280, Math.round(el2.clientWidth || 640)), H = 210, vas = 4, oik = 48, yla = 8, ala = 20;
+  const n = k.pvm.length, stop = L(t)?.stop?.taso;
+  const arvot = [...k.paatos, ...k.ka50, ...k.ka200, ...(stop != null ? [stop] : [])].filter(v => v != null);
+  let lo = Math.min(...arvot), hi = Math.max(...arvot);
+  const vara = (hi - lo) * 0.06 || 1; lo -= vara; hi += vara;
+  const X = i => vas + i * (W - vas - oik) / Math.max(1, n - 1);
+  const Y = v => yla + (hi - v) / (hi - lo) * (H - yla - ala);
+  const viiva = (sarja, vari, lev) => {
+    let d = "", kyna = false;
+    sarja.forEach((v, i) => { if (v == null) { kyna = false; return; } d += `${kyna ? "L" : "M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`; kyna = true; });
+    return `<path d="${d}" fill="none" stroke="${vari}" stroke-width="${lev}" stroke-linejoin="round"/>`;
+  };
+  let svg = "";
+  const askel = porrasta(hi - lo);
+  for (let v = Math.ceil(lo / askel) * askel; v <= hi; v += askel) {
+    svg += `<line x1="${vas}" x2="${W - oik}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--raja)"/><text x="${W - oik + 4}" y="${Y(v) + 4}" font-size="11" fill="var(--toissij)">${nf(v, askel >= 1 ? 0 : askel >= 0.1 ? 1 : 3)}</text>`;
+  }
+  const kuukaudet = new Set();
+  k.pvm.forEach((p, i) => { const kk = p.slice(0, 7); if (!kuukaudet.has(kk) && X(i) > 18 && i < n - 10 && (W < 500 ? ["01", "04", "07", "10"] : ["01", "03", "05", "07", "09", "11"]).includes(p.slice(5, 7))) { kuukaudet.add(kk); svg += `<text x="${X(i)}" y="${H - 5}" font-size="11" fill="var(--toissij)" text-anchor="middle">${+p.slice(5, 7)}/${p.slice(2, 4)}</text>`; } });
+  if (stop != null) svg += `<line x1="${vas}" x2="${W - oik}" y1="${Y(stop)}" y2="${Y(stop)}" stroke="var(--punainen)" stroke-dasharray="4 4" stroke-width="1"/>`;
+  svg += viiva(k.ka200, "var(--ka200)", 1.4) + viiva(k.ka50, "var(--ka50)", 1.4) + viiva(k.paatos, "var(--kurssi)", 1.8);
+  const vaihdot = (k.signaalinvaihdot || []).map(v => ({ ...v, i: k.pvm.indexOf(v.pvm) >= 0 ? k.pvm.indexOf(v.pvm) : k.pvm.findIndex(p => p >= v.pvm) }))
+    .map(v => ({ ...v, i: v.i < 0 ? n - 1 : v.i }));
+  for (const v of vaihdot) {
+    const x = X(v.i), y = Y(v.kurssi ?? k.paatos[v.i]);
+    const huononi = huononiko(v);
+    const vari = { trendi_rikki: "#e24b4a", varoitus: "#ef9f27", osto_ehdokas: "#639922", pida: "#97c459", seuraa: "#888780" }[v.jalkeen] || "#888780";
+    svg += huononi ? `<path d="M${x - 6} ${y - 14}L${x + 6} ${y - 14}L${x} ${y - 4}Z" fill="${vari}" stroke="var(--pinta)" stroke-width="1"><title>${pvmFi(v.pvm)} ${NIMET[v.jalkeen] || v.jalkeen}</title></path>`
+      : `<path d="M${x - 6} ${y + 14}L${x + 6} ${y + 14}L${x} ${y + 4}Z" fill="${vari}" stroke="var(--pinta)" stroke-width="1"><title>${pvmFi(v.pvm)} ${NIMET[v.jalkeen] || v.jalkeen}</title></path>`;
+  }
+  svg += `<line id="kursori" x1="0" x2="0" y1="${yla}" y2="${H - ala}" stroke="var(--raja2)" visibility="hidden"/>`;
+  const selite = vaihdot.length ? `<div class="m" style="margin-top:4px">${vaihdot.slice(-6).reverse().map(v => `${huonoMerkki(v)} ${pvmLyh(v.pvm)} ${esc(NIMET[v.jalkeen] || v.jalkeen)} (${hinta(v.kurssi)})${v.ennen ? "" : " · seurannan alku"}`).join("<br>")}</div>` : "";
+  el2.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t)} 12 kk kurssi, ka50 ja ka200">${svg}</svg><div class="vihje"></div>${selite}`;
+  const s = el2.querySelector("svg"), vihje = el2.querySelector(".vihje"), kursori = el2.querySelector("#kursori");
+  const nayta = ev => {
+    const r = s.getBoundingClientRect();
+    const x = (ev.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(n - 1, Math.round((x - vas) / ((W - vas - oik) / Math.max(1, n - 1)))));
+    kursori.setAttribute("x1", X(i)); kursori.setAttribute("x2", X(i)); kursori.setAttribute("visibility", "visible");
+    vihje.innerHTML = `${pvmFi(k.pvm[i])} · <b>${hinta(k.paatos[i])}</b> · ka50 ${hinta(k.ka50[i])} · ka200 ${hinta(k.ka200[i])}`;
+    vihje.style.display = "block";
+    const vx = X(i) / W * r.width;
+    vihje.style.left = Math.max(0, Math.min(r.width - vihje.offsetWidth, vx - vihje.offsetWidth / 2)) + "px";
+  };
+  s.addEventListener("pointermove", nayta);
+  s.addEventListener("pointerdown", nayta);
+  s.addEventListener("pointerleave", () => { vihje.style.display = "none"; kursori.setAttribute("visibility", "hidden"); });
+}
+// Laatujärjestys merkin suuntaa varten (▼ = heikkeni, ▲ = vahvistui).
+const LAATU = { trendi_rikki: 0, varoitus: 1, seuraa: 2, pida: 3, osto_ehdokas: 4 };
+function huononiko(v) {
+  return v.ennen != null ? (LAATU[v.jalkeen] ?? 2) < (LAATU[v.ennen] ?? 2) : ["trendi_rikki", "varoitus"].includes(v.jalkeen);
+}
+let kokoAjastin, viimeLeveys = innerWidth;
+window.addEventListener("resize", () => {
+  clearTimeout(kokoAjastin);
+  kokoAjastin = setTimeout(() => { if (innerWidth !== viimeLeveys && nykyinenOsake()) { viimeLeveys = innerWidth; piirraKaavio(nykyinenOsake()); } }, 200);
+});
+function huonoMerkki(v) { return huononiko(v) ? "▼" : "▲"; }
+function porrasta(vali) {
+  const raaka = vali / 4, e = Math.pow(10, Math.floor(Math.log10(raaka)));
+  return [1, 2, 2.5, 5, 10].map(x => x * e).find(x => x >= raaka) || e * 10;
+}
+
+// ---------------------------------------------------------------- yhtiö
+function naytaYhtio(t) {
+  const l = L(t) || {}, o = etsiRivi(t) || {};
+  const y = l.yhtio, e = l.ennusteet, s = l.sisapiiri, tk = l.tekninen;
+  const kpl = (nimi, rivit) => rivit.filter(Boolean).length ? `<h3>${nimi}</h3>${rivit.filter(Boolean).map(r => `<p>${r}</p>`).join("")}` : "";
+  const ei = x => x == null;
+  const a = S.analyysiCache[t];
+  const kuvaus = a && !a._virhe && a.yhtio_kuvaus
+    ? `<p>${esc(a.yhtio_kuvaus)}</p><p class="m">Claude, ${pvmFi(a.yhtio_kuvaus_pvm || a.pvm)}. Päivitetään neljännesvuosittain vallihauta-arvion yhteydessä.</p>`
+    : `<p class="m">Ei vielä kuvausta. Claude kirjoittaa suomeksi, mitä yhtiö tekee, mistä sen liikevaihto tulee ja mikä on sen asema kilpailijoihin nähden, osakkeen seuraavan analyysin yhteydessä.</p>`;
+  let h = `<h2><span>${esc(t)} · ${esc(o.nimi || l.nimi || "")}</span><button class="ikoni" data-sulje aria-label="Sulje">✕</button></h2>
+    <p class="m">${esc(o.porssi || "")}${(o.ryhma || l.ryhma) ? " · " + esc(o.ryhma || l.ryhma) : ""}${l.markkina_arvo_eur != null ? " · markkina-arvo " + eur(l.markkina_arvo_eur) : ""}${y?.raportointivaluutta ? " · raportoi " + esc(y.raportointivaluutta) : ""}</p>
+    <div class="yhtio"><h3>Mitä yhtiö tekee</h3>${kuvaus}`;
+  if (l.tyyppi === "etp") return h + `<h3>Tila nyt</h3><p>ETP: ei yhtiö- eikä fundamenttitietoja (määrittely). Vain tekninen signaali ja varoitukset.</p></div>`;
+  h += `<p class="m" style="margin-top:12px">Alla oleva tila on koottu datasta (Python laski luvut ${pvmFi(l.laskenta?.pvm || S.latest?.luotu)}). Clauden sanallinen arvio luvuista on osakesivun analyysissä (Osa-alueet).</p>`;
+  h += kpl("Kasvu", y ? [
+    `Liikevaihto ${ei(y.liikevaihto_kasvu_q_pct) ? "ei tietoa viime kvartaalilta" : (y.liikevaihto_kasvu_q_pct >= 0 ? "kasvoi " : "laski ") + nf(Math.abs(y.liikevaihto_kasvu_q_pct)) + " % viime kvartaalilla vuoden takaisesta"}${y.viimeisin_kvartaali ? " (" + pvmFi(y.viimeisin_kvartaali) + ")" : ""} ja ${ei(y.liikevaihto_kasvu_vuosi_pct) ? "tilikaudelta ei tietoa" : (y.liikevaihto_kasvu_vuosi_pct >= 0 ? "kasvoi " : "laski ") + nf(Math.abs(y.liikevaihto_kasvu_vuosi_pct)) + " % viime tilikaudella"}.`,
+    `Osakekohtainen tulos (EPS): kvartaali ${pros(y.eps_kasvu_q_pct)}, tilikausi ${pros(y.eps_kasvu_vuosi_pct)}.`,
+    !ei(y.liikevaihto_ttm) ? `Liikevaihto 12 kk ${eur(y.liikevaihto_ttm).replace("€", esc(y.raportointivaluutta || "€"))}.` : "",
+    y.jakso && y.jakso !== "kvartaali" ? `Yhtiö raportoi ${esc(y.jakso)}-jaksoin, joten osa luvuista on vuositasolta.` : "",
+  ] : ["Yhtiön luvuista ei tietoa."]);
+  h += kpl("Kannattavuus ja tase", y ? [
+    `Bruttokate ${ei(y.bruttokate_pct) ? "ei tietoa" : nf(y.bruttokate_pct) + " %"}${ei(y.bruttokate_muutos_pp) ? "" : " (" + (y.bruttokate_muutos_pp > 0 ? "+" : "") + nf(y.bruttokate_muutos_pp, 2) + " %-yks. vuodessa)"}; vapaan kassavirran marginaali ${ei(y.fcf_marginaali_pct) ? "ei tietoa" : nf(y.fcf_marginaali_pct) + " %"}.`,
+    ei(y.nettovelka_ebitda) ? "Nettovelka / EBITDA: ei tietoa." : y.nettovelka_ebitda < 0 ? `Yhtiöllä on nettokassaa (nettovelka / EBITDA ${nf(y.nettovelka_ebitda)}).` : `Nettovelka / EBITDA ${nf(y.nettovelka_ebitda)}.`,
+    !ei(y.rule_of_40) ? `Rule of 40 (kasvu % + FCF-marginaali %) ${nf(y.rule_of_40)}; raja 40.` : "",
+  ] : []);
+  h += kpl("Ennusteet ja arvostus", e ? [
+    `EPS-ennusteet: 4 vk ${pros(e.eps_revisio_4vk_pct)}, 3 kk ${pros(e.eps_revisio_3kk_pct)}${ei(e.analyytikoita) ? "" : " (" + nf(e.analyytikoita, 0) + " analyytikkoa)"}.`,
+    !ei(e.tulosyllatys_pct) ? `Viime tulos oli ${pros(e.tulosyllatys_pct)} ennusteesta${e.tulosyllatys_pvm ? " (" + pvmFi(e.tulosyllatys_pvm) + ")" : ""}.` : "",
+    `Ennuste-P/E ${ei(e.forward_pe) ? "ei tietoa" : nf(e.forward_pe)}, toteutunut P/E ${ei(e.pe_ttm) ? "ei tietoa" : nf(e.pe_ttm)}${ei(e.pe_persentiili) ? "" : ` – ${nf(e.pe_persentiili, 0)}. persentiili oman ${nf(e.arvostus_kk, 0)} kk historian sisällä (0 = halvin)`}.`,
+    `EV/liikevaihto ${ei(e.ev_rev_ttm ?? e.ev_rev) ? "ei tietoa" : nf(e.ev_rev_ttm ?? e.ev_rev)}${ei(e.ev_rev_persentiili) ? "" : ` – ${nf(e.ev_rev_persentiili, 0)}. persentiili omassa historiassa`}.`,
+    l.tulospaiva ? `Seuraava tulos ${pvmFi(l.tulospaiva)}.` : "",
+  ] : []);
+  h += kpl("Sisäpiiri ja omistajat", s ? [
+    `${nf(s.jakso_pv, 0)} pv: sisäpiirin ostot ${eur(s.ostot_eur)}, myynnit ${eur(s.myynnit_eur)}${s.suunnitellut_myynnit_eur ? ` (lisäksi ennalta suunnitellut 10b5-1-myynnit ${eur(s.suunnitellut_myynnit_eur)})` : ""}; ostajia ${nf(s.ostajia, 0)}, myyjiä 30 pv ${nf(s.myyjia_30pv, 0)}.`,
+    `Instituutioiden omistus ${pros(s.instituutiot_muutos_pct)}${ei(s.lyhyeksi_pct) ? "" : `, lyhyeksimyynti ${nf(s.lyhyeksi_pct, 2)} % osakkeista`}.`,
+  ] : ["Sisäpiiridataa ei ole tälle pörssille (ei tietoa)."]);
+  h += kpl("Kurssin tila", tk ? [
+    `Weinstein-vaihe ${tk.weinstein_vaihe ?? "ei tietoa"}; kurssi ${pros(tk.kurssi_vs_ka50_pct)} vs 50 pv ka ja ${pros(tk.kurssi_vs_ka200_pct)} vs 200 pv ka; ${pros(tk.etaisyys_huipusta_pct)} 3 kk huipusta.`,
+    `Suhteellinen vahvuus indeksiin: 3 kk ${pros(tk.rs_3kk)}-yks., 6 kk ${pros(tk.rs_6kk)}-yks.`,
+  ] : []);
+  return h + `</div>`;
+}
+
+// ---------------------------------------------------------------- reititys
+function reitti() {
+  const h = decodeURIComponent(location.hash.replace(/^#\/?/, ""));
+  if (h.startsWith("osake/")) return { nakyma: lsLue("a6.valilehti") || "salkku", osake: h.slice(6) };
+  const n = ["salkku", "seuranta", "ehdotukset"].includes(h) ? h : "salkku";
+  return { nakyma: n, osake: null };
+}
+function nykyinenOsake() { return reitti().osake; }
+
+function piirra() {
+  if (!AS.token) return naytaKirjautuminen();
+  document.body.classList.remove("ulos");
+  const tila = reitti();
+  if (tila.osake) {
+    const lista = etsiRivi(tila.osake)?.lista;
+    if (lista) { tila.nakyma = lista; lsKirjoita("a6.valilehti", lista); }
+  } else lsKirjoita("a6.valilehti", tila.nakyma);
+  document.body.classList.toggle("nayta-osake", !!tila.osake);
+  const salkkuN = salkunRivit().length, seurN = seurannanRivit().length, ehdN = (S.ehdotukset?.osakkeet || []).length;
+  for (const a of document.querySelectorAll("#valilehdet a")) {
+    a.classList.toggle("on", a.dataset.v === tila.nakyma);
+    a.textContent = { salkku: `Salkku ${salkkuN}`, seuranta: `Seuranta ${seurN}`, ehdotukset: `Ehdotukset${ehdN ? " " + ehdN : ""}` }[a.dataset.v];
+  }
+  const m = S.latest?.markkina;
+  const mk = document.getElementById("markkina");
+  mk.textContent = m ? `${{ vahva: "Vahva", neutraali: "Neutraali", heikko: "Heikko" }[m.tila] || m.tila} · kynnys ${m.ostokynnys}` : "markkina ei tietoa";
+  mk.className = "p " + (m?.tila === "vahva" ? "s-pida" : m?.tila === "heikko" ? "s-varoitus" : "s-seuraa");
+  mk.title = m ? `Markkinaympäristö ${m.tila}, ostokynnys ${m.ostokynnys}. ${(m.perustelut || []).join("; ")}` : "";
+
+  const lista = document.getElementById("lista");
+  const vieritys = window.scrollY;
+  lista.innerHTML = !S.salkku && !S.latest ? `<div class="tyhja"><div class="t">Dataa ei voitu lukea</div>${esc(S.virheet.join("; "))}</div>`
+    : { salkku: naytaSalkku, seuranta: naytaSeuranta, ehdotukset: naytaEhdotukset }[tila.nakyma](tila);
+  const osake = document.getElementById("osake");
+  if (tila.osake) {
+    if (osake.dataset.t !== tila.osake || !osake.dataset.piirretty) window.scrollTo(0, 0);
+    osake.innerHTML = naytaOsake(tila.osake);
+    osake.dataset.t = tila.osake; osake.dataset.piirretty = "1";
+    piirraKaavio(tila.osake);
+  } else {
+    osake.innerHTML = `<div class="tyhja">Valitse osake listalta.</div>`;
+    osake.dataset.t = ""; window.scrollTo(0, vieritys);
+  }
+  const haku = document.getElementById("haku");
+  if (haku) haku.oninput = () => { S.haku = haku.value; const pos = haku.selectionStart; piirra(); const h2 = document.getElementById("haku"); h2.focus(); h2.setSelectionRange(pos, pos); };
+  piirraAlareuna();
+}
+
+function piirraAlareuna() {
+  const el = document.getElementById("alareuna");
+  const osat = [];
+  const l = S.latest;
+  if (l) {
+    const t = l.terveys || {};
+    const ika = (Date.now() - new Date(l.luotu)) / 36e5;
+    const raja = S.cfg.latestMaxH || 36;
+    const kurssiPvm = Object.values(l.osakkeet || {}).map(o => o.kurssi?.pvm).filter(Boolean).sort().pop();
+    osat.push(`<span class="${ika > raja ? "vika" : ""}">Data ${helsinki(l.luotu)}${kurssiPvm ? ` (kurssit ${pvmLyh(kurssiPvm)})` : ""}${ika > raja ? ` – vanhempi kuin ${raja} h` : ""}</span>`);
+    osat.push(`ok ${t.ok ?? "?"}`, `osittain ${t.osittain ?? "?"}`);
+    osat.push(`<span class="${t.puuttuu ? "vika" : ""}">puuttuu ${t.puuttuu ?? "?"}${t.puuttuvat_tickerit?.length ? " (" + t.puuttuvat_tickerit.map(esc).join(", ") + ")" : ""}</span>`);
+    if (t.epailyttavat?.length) osat.push(`<span class="vika">epäilyttävä ${t.epailyttavat.length} (${t.epailyttavat.map(esc).join(", ")})</span>`);
+    for (const h of t.huomiot || []) osat.push(`<span class="vika">huomio: ${esc(h)}</span>`);
+    const viat = Object.entries(t.lahteet || {}).filter(([, v]) => /^(virhe|osittain)/.test(v));
+    if (viat.length) osat.push(`<span class="vika">lähteet: ${viat.map(([k, v]) => esc(k + ": " + v)).join("; ")}</span>`);
+  } else osat.push(`<span class="vika">latest.json puuttuu</span>`);
+  const kk = tanaan().slice(0, 7);
+  const kulu = S.kulut.filter(r => String(r.luotu || r.pvm || "").startsWith(kk)).reduce((s, r) => s + (Number(r.eur) || 0), 0);
+  const kkNimi = new Intl.DateTimeFormat("fi-FI", { month: "long" }).format(new Date());
+  const katto = S.cfg.kulukatto;
+  osat.push(`<span class="${katto != null && kulu >= katto ? "vika" : ""}">Kulut ${kkNimi} ${nf(kulu, 2)} € / ${katto != null ? nf(katto, 0) + " €" : "katto ei tiedossa"}${katto != null && kulu >= katto ? " – budjetti täynnä" : ""}</span>`);
+  if (S.virheet.length) osat.push(`<span class="vika">ei luettu: ${S.virheet.map(esc).join("; ")}</span>`);
+  el.innerHTML = osat.join(" · ") + (S.ladattu ? `<br><span>Haettu selaimeen klo ${S.ladattu.toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit" })} · ${esc(AS.repo)}</span>` : "");
+}
+
+// ---------------------------------------------------------------- ilmoitus ja modaali
+let ilmoitusAjastin;
+function ilmoita(teksti, ms = 4500) {
+  const el = document.getElementById("ilmoitus");
+  el.textContent = teksti; el.classList.add("nakyy");
+  clearTimeout(ilmoitusAjastin); ilmoitusAjastin = setTimeout(() => el.classList.remove("nakyy"), ms);
+}
+function avaa(html) {
+  document.getElementById("ikkuna").innerHTML = html;
+  document.getElementById("modaali").classList.add("auki");
+  const eka = document.querySelector("#ikkuna input, #ikkuna select");
+  if (eka && matchMedia("(min-width:600px)").matches) eka.focus();
+}
+function sulje() { document.getElementById("modaali").classList.remove("auki"); document.getElementById("ikkuna").innerHTML = ""; }
+const otsikko = t => `<h2><span>${t}</span><button class="ikoni" data-sulje aria-label="Sulje">✕</button></h2>`;
+const kentta = id => document.getElementById(id);
+function naytaVirhe(teksti) { const el = document.querySelector("#ikkuna .virhe"); if (el) el.textContent = teksti; }
+
+// Tallennus napin kanssa: estää tuplaklikkauksen ja näyttää virheen ikkunassa.
+async function suorita(nappi, viesti, muutos, onnistui, jalkeen) {
+  naytaVirhe("");
+  if (nappi) { nappi.disabled = true; nappi.dataset.teksti = nappi.textContent; nappi.textContent = "Tallennetaan…"; }
+  try {
+    const tiedostot = await tallenna(viesti, muutos);
+    if (tiedostot) paivitaTilaan(tiedostot);
+    sulje();
+    if (jalkeen) jalkeen();
+    piirra();
+    ilmoita(onnistui || "Tallennettu");
+  } catch (e) {
+    naytaVirhe(e instanceof TallennusEste ? e.message : `Tallennus epäonnistui: ${e.message}`);
+    if (!document.querySelector("#ikkuna .virhe")) ilmoita(`Tallennus epäonnistui: ${e.message}`, 8000);
+  } finally {
+    if (nappi && document.body.contains(nappi)) { nappi.disabled = false; nappi.textContent = nappi.dataset.teksti; }
+  }
+}
+class TallennusEste extends Error {}
+function paivitaTilaan(tiedostot) {
+  for (const [p, sisalto] of Object.entries(tiedostot)) {
+    if (p === "listat/salkku.json") S.salkku = JSON.parse(sisalto);
+    else if (p === "listat/seuranta.json") S.seuranta = JSON.parse(sisalto);
+    else if (p === "listat/ehdotukset.json") S.ehdotukset = JSON.parse(sisalto);
+    else if (p === "listat/hylatyt.json") S.hylatyt = JSON.parse(sisalto);
+    else if (p === "listat/kaupat.jsonl") S.kaupat = jsonl(sisalto);
+    else if (p === "data/analyysijono.json") S.jono = JSON.parse(sisalto);
+  }
+}
+
+// Sama muoto kuin Pythonilla (agentti/listat.py, muotoile): yksi osake riville.
+function muotoileLista(d) {
+  const rivit = Object.entries(d).map(([k, v]) => k === "osakkeet"
+    ? (v.length ? `  "osakkeet": [\n${v.map(o => "    " + pyJson(o)).join(",\n")}\n  ]` : `  "osakkeet": []`)
+    : `  ${pyJson(k)}: ${pyJson(v)}`);
+  return "{\n" + rivit.join(",\n") + "\n}\n";
+}
+// json.dumps(ensure_ascii=False) -muoto: ", " ja ": " erottimina.
+function pyJson(v) {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map(pyJson).join(", ") + "]";
+  return "{" + Object.entries(v).map(([k, x]) => JSON.stringify(k) + ": " + pyJson(x)).join(", ") + "}";
+}
+const lueLista = (teksti, polku) => {
+  if (teksti == null) throw new TallennusEste(`${polku} puuttuu reposta`);
+  const d = JSON.parse(teksti);
+  if (d.versio !== 1 || !Array.isArray(d.osakkeet)) throw new TallennusEste(`${polku}: tuntematon rakenne`);
+  return d;
+};
+
+// ---------------------------------------------------------------- kaupat
+// Sama logiikka kuin agentti/listat.py: sovella_kauppa. Muuttaa sanakirjoja.
+function sovellaKauppa(salkku, seuranta, k) {
+  const t = k.ticker, sR = salkku.osakkeet, uR = seuranta.osakkeet;
+  const s = sR.find(o => o.ticker === t), u = uR.find(o => o.ticker === t);
+  if (k.tapahtuma === "osto") {
+    if (s) {
+      if (typeof s.maara === "number" && s.maara > 0 && typeof s.ostohinta === "number") {
+        const m = s.maara + k.maara;
+        s.ostohinta = Math.round((s.maara * s.ostohinta + k.maara * k.hinta) / m * 1e6) / 1e6;
+        s.maara = m;
+      } else { s.ostohinta = k.hinta; s.maara = k.maara; }
+      if (!s.ostopvm) s.ostopvm = k.pvm;
+      return `osto ${t} ${nf(k.maara, k.maara % 1 ? 4 : 0)} á ${hinta(k.hinta)}`;
+    }
+    if (u) {
+      uR.splice(uR.indexOf(u), 1);
+      sR.push({ ...u, ostohinta: k.hinta, maara: k.maara, ostopvm: k.pvm });
+      return `osto ${t} ${nf(k.maara, 0)} á ${hinta(k.hinta)}, siirretty salkkuun`;
+    }
+    throw new TallennusEste(`${t} ei ole salkussa eikä seurannassa. Lisää osake ensin listalle.`);
+  }
+  if (!s) throw new TallennusEste(`${t} ei ole salkussa.`);
+  let jaljella;
+  if (k.kaikki) jaljella = 0;
+  else if (typeof s.maara !== "number") throw new TallennusEste(`${t}: omistuksen määrä ei ole tiedossa. Valitse "Myy kaikki" tai kirjaa ensin määrä.`);
+  else if (k.maara > s.maara + 1e-9) throw new TallennusEste(`Myynti ${k.maara} on suurempi kuin omistus ${s.maara}.`);
+  else jaljella = s.maara - k.maara;
+  if (jaljella > 1e-9) { s.maara = jaljella; return `myynti ${t} ${nf(k.maara, 0)} á ${hinta(k.hinta)}`; }
+  sR.splice(sR.indexOf(s), 1);
+  if (!u) { const { ostohinta, maara, ostopvm, ...loput } = s; uR.push(loput); }
+  if (Array.isArray(seuranta.ryhmat) && !seuranta.ryhmat.includes(s.ryhma)) seuranta.ryhmat.push(s.ryhma);
+  return `myynti ${t} kaikki á ${hinta(k.hinta)}, siirretty seurantaan`;
+}
+
+// ---------------------------------------------------------------- lomakkeet
+function ryhmaVaihtoehdot(valittu) {
+  const r = [...(S.seuranta?.ryhmat || [])];
+  for (const o of kaikkiRivit()) if (!r.includes(o.ryhma)) r.push(o.ryhma);
+  return r.map(x => `<option ${x === valittu ? "selected" : ""}>${esc(x)}</option>`).join("") + `<option value="__uusi">Uusi ryhmä…</option>`;
+}
+function ryhmaArvo(selId, uusiId) { const v = kentta(selId).value; return v === "__uusi" ? kentta(uusiId).value.trim() : v; }
+function kytkeUusiRyhma(selId, uusiId) {
+  const sel = kentta(selId), uusi = kentta(uusiId);
+  const p = () => { uusi.parentElement.style.display = sel.value === "__uusi" ? "" : "none"; };
+  sel.onchange = p; p();
+}
+
+function lomakeLisaa(lista, esitaytto = {}) {
+  const porssiOpt = S.porssit.map(p => `<option value="${esc(p.liite)}" ${p.liite === (esitaytto.liite ?? "") ? "selected" : ""}>${esc(p.nimi)} (${p.liite || "ei liitettä"}, ${esc(p.valuutta)})</option>`).join("");
+  avaa(`${otsikko("Lisää osake")}
+    <p class="m">Lisäys tallentuu listaan heti. Data haetaan seuraavassa päivä- tai viikkoajossa; jos Yahoo-tunnus on väärä, osake näkyy silloin terveysrivillä puuttuvana.</p>
+    <div class="kaksi"><div><label for="l-ticker">Ticker (näkyvä nimi)</label><input id="l-ticker" value="${esc(esitaytto.ticker || "")}" placeholder="NOKIA" autocapitalize="characters"></div>
+    <div><label for="l-nimi">Yhtiön nimi</label><input id="l-nimi" value="${esc(esitaytto.nimi || "")}" placeholder="Nokia"></div></div>
+    <label for="l-porssi">Pörssi</label><select id="l-porssi">${porssiOpt}</select>
+    <div class="kaksi"><div><label for="l-kurssi">Yahoo-tunnus (kurssi)</label><input id="l-kurssi" value="${esc(esitaytto.kurssi || "")}" placeholder="NOKIA.HE" autocapitalize="characters"></div>
+    <div><label for="l-tyyppi">Tyyppi</label><select id="l-tyyppi"><option value="osake">osake</option><option value="etp">ETP (vain tekninen)</option></select></div></div>
+    <div class="kaksi"><div><label for="l-lista">Lista</label><select id="l-lista"><option value="seuranta" ${lista !== "salkku" ? "selected" : ""}>Seuranta</option><option value="salkku" ${lista === "salkku" ? "selected" : ""}>Salkku</option></select></div>
+    <div><label for="l-ryhma">Ryhmä</label><select id="l-ryhma">${ryhmaVaihtoehdot(esitaytto.ryhma)}</select></div></div>
+    <div><label for="l-uusiryhma">Uuden ryhmän nimi</label><input id="l-uusiryhma"></div>
+    <label for="l-huom">Huomautus (vapaaehtoinen)</label><input id="l-huom">
+    <div class="virhe"></div>
+    <div class="napit" style="margin-top:12px"><button class="ensisij" id="l-jatka">Tarkista</button><button data-sulje>Peruuta</button></div>`);
+  kytkeUusiRyhma("l-ryhma", "l-uusiryhma");
+  const ticker = kentta("l-ticker"), kurssi = kentta("l-kurssi"), porssi = kentta("l-porssi");
+  let kasin = !!esitaytto.kurssi;
+  const ehdota = () => { if (!kasin) kurssi.value = ticker.value.trim().toUpperCase().replace(/\s+/g, "-") + porssi.value; };
+  ticker.oninput = ehdota; porssi.onchange = ehdota; kurssi.oninput = () => { kasin = true; };
+  kentta("l-jatka").onclick = () => {
+    const o = {
+      ticker: ticker.value.trim().toUpperCase(), nimi: kentta("l-nimi").value.trim(),
+      kurssi: kurssi.value.trim().toUpperCase(), liite: porssi.value, tyyppi: kentta("l-tyyppi").value,
+      lista: kentta("l-lista").value, ryhma: ryhmaArvo("l-ryhma", "l-uusiryhma"), huom: kentta("l-huom").value.trim(),
+    };
+    const p = S.porssit.find(x => x.liite === o.liite);
+    const liite = o.kurssi.includes(".") ? "." + o.kurssi.split(".").pop() : "";
+    if (!o.ticker) return naytaVirhe("Anna ticker.");
+    if (!o.nimi) return naytaVirhe("Anna yhtiön nimi.");
+    if (!o.kurssi) return naytaVirhe("Anna Yahoo-tunnus.");
+    if (!o.ryhma) return naytaVirhe("Valitse tai anna ryhmä.");
+    if (!p) return naytaVirhe("Valitse pörssi.");
+    if (liite !== o.liite) return naytaVirhe(`Yahoo-tunnuksen ${o.kurssi} pörssiliite '${liite || "ei liitettä"}' ei vastaa valittua pörssiä ${p.nimi} ('${o.liite || "ei liitettä"}').`);
+    if (kaikkiRivit().some(r => r.ticker === o.ticker)) return naytaVirhe(`${o.ticker} on jo listalla.`);
+    vahvistaLisays(o, p);
+  };
+}
+function vahvistaLisays(o, p) {
+  const listaNimi = o.lista === "salkku" ? "Salkkuun" : "Seurantaan";
+  avaa(`${otsikko("Vahvista lisäys")}
+    <div class="vahvistus"><b>${esc(o.ticker)}</b> · ${esc(o.nimi)}<br>Pörssi <b>${esc(p.nimi)}</b> (${esc(p.valuutta)}) · Yahoo-tunnus <b>${esc(o.kurssi)}</b><br>
+    ${listaNimi}, ryhmä ${esc(o.ryhma)} · ${o.tyyppi === "etp" ? "ETP: vain tekninen signaali" : "osake"}</div>
+    <p class="m">Onko pörssi oikea? Väärä pörssi antaa väärän vertailuindeksin ja valuutan.</p>
+    <div class="virhe"></div>
+    <div class="napit"><button class="ensisij" id="v-ok">Vahvista ja tallenna</button><button id="v-takaisin">Takaisin</button></div>`);
+  kentta("v-takaisin").onclick = () => lomakeLisaa(o.lista, o);
+  kentta("v-ok").onclick = ev => {
+    const rivi = { ticker: o.ticker, nimi: o.nimi, porssi: p.nimi, ryhma: o.ryhma, tyyppi: o.tyyppi,
+      tunnukset: { kurssi: o.kurssi, tilinpaatos: o.tyyppi === "etp" ? null : o.kurssi } };
+    if (o.lista === "salkku") Object.assign(rivi, { ostohinta: null, maara: null, ostopvm: null });
+    rivi.huom = o.huom;
+    const polku = `listat/${o.lista}.json`;
+    suorita(ev.target, `lisätty ${o.ticker} ${o.lista === "salkku" ? "salkkuun" : "seurantaan"} (${o.ryhma})`, async lue => {
+      const d = lueLista(await lue(polku), polku);
+      if (d.osakkeet.some(r => r.ticker === o.ticker)) throw new TallennusEste(`${o.ticker} on jo listalla.`);
+      d.osakkeet.push(rivi);
+      const out = { [polku]: muotoileLista(d) };
+      if (o.lista === "seuranta" && Array.isArray(d.ryhmat) && !d.ryhmat.includes(o.ryhma)) { d.ryhmat.push(o.ryhma); out[polku] = muotoileLista(d); }
+      return out;
+    }, `${o.ticker} lisätty. Data tulee seuraavassa ajossa.`);
+  };
+}
+
+function lomakePoista(t) {
+  const o = etsiRivi(t);
+  const myosSeurannassa = o.lista === "salkku" && (S.seuranta?.osakkeet || []).some(r => r.ticker === t);
+  avaa(`${otsikko(`Poista ${esc(t)}`)}
+    <p>Poistetaanko <b>${esc(t)}</b> (${esc(o.nimi)}) ${o.lista === "salkku" ? "salkusta" : "seurannasta"}?${o.lista === "salkku" && o.maara ? " Poisto ei kirjaa myyntiä; jos myit osakkeet, käytä Kirjaa kauppa." : ""}${myosSeurannassa ? " Osake on myös seurannassa ja näkyy poiston jälkeen siellä." : ""}</p>
+    <label for="p-vahv">Kirjoita ${esc(t)} vahvistukseksi</label><input id="p-vahv" autocapitalize="characters" autocomplete="off">
+    <div class="virhe"></div>
+    <div class="napit" style="margin-top:12px"><button class="vaara" id="p-ok">Poista</button><button data-sulje>Peruuta</button></div>`);
+  kentta("p-ok").onclick = ev => {
+    if (kentta("p-vahv").value.trim().toUpperCase() !== t.toUpperCase()) return naytaVirhe(`Kirjoita ${t} vahvistukseksi.`);
+    const polku = `listat/${o.lista}.json`;
+    suorita(ev.target, `poistettu ${t} ${o.lista === "salkku" ? "salkusta" : "seurannasta"}`, async lue => {
+      const d = lueLista(await lue(polku), polku);
+      const ennen = d.osakkeet.length;
+      d.osakkeet = d.osakkeet.filter(r => r.ticker !== t);
+      if (d.osakkeet.length === ennen) throw new TallennusEste(`${t} ei ole enää listalla.`);
+      return { [polku]: muotoileLista(d) };
+    }, `${t} poistettu`, () => { if (nykyinenOsake() === t) location.hash = `#/${o.lista}`; });
+  };
+}
+
+function lomakeSiirra(t) {
+  const o = etsiRivi(t);
+  avaa(`${otsikko(`Siirrä ${esc(t)}`)}
+    <p class="m">Nyt: ${o.lista === "salkku" ? "Salkku" : "Seuranta"} · ${esc(o.ryhma)}</p>
+    <div class="kaksi"><div><label for="s-lista">Lista</label><select id="s-lista"><option value="salkku" ${o.lista === "salkku" ? "selected" : ""}>Salkku</option><option value="seuranta" ${o.lista === "seuranta" ? "selected" : ""}>Seuranta</option></select></div>
+    <div><label for="s-ryhma">Ryhmä</label><select id="s-ryhma">${ryhmaVaihtoehdot(o.ryhma)}</select></div></div>
+    <div><label for="s-uusiryhma">Uuden ryhmän nimi</label><input id="s-uusiryhma"></div>
+    <p class="m" id="s-huom"></p>
+    <div class="virhe"></div>
+    <div class="napit" style="margin-top:12px"><button class="ensisij" id="s-ok">Siirrä</button><button data-sulje>Peruuta</button></div>`);
+  kytkeUusiRyhma("s-ryhma", "s-uusiryhma");
+  const huom = () => { kentta("s-huom").textContent = o.lista === "salkku" && kentta("s-lista").value === "seuranta" ? "Siirto seurantaan poistaa ostohinnan ja määrän eikä kirjaa myyntiä. Jos myit osakkeet, käytä Kirjaa kauppa: myynti nollaan siirtää osakkeen seurantaan itse." : ""; };
+  kentta("s-lista").addEventListener("change", huom); huom();
+  kentta("s-ok").onclick = ev => {
+    const kohde = kentta("s-lista").value, ryhma = ryhmaArvo("s-ryhma", "s-uusiryhma");
+    if (!ryhma) return naytaVirhe("Valitse tai anna ryhmä.");
+    if (kohde === o.lista && ryhma === o.ryhma) return naytaVirhe("Valitse eri lista tai ryhmä.");
+    const nimiL = x => x === "salkku" ? "salkusta" : "seurannasta", kohdeL = x => x === "salkku" ? "salkkuun" : "seurantaan";
+    const viesti = kohde === o.lista ? `${t} ryhmään ${ryhma}` : `siirretty ${t} ${nimiL(o.lista)} ${kohdeL(kohde)} (${ryhma})`;
+    suorita(ev.target, viesti, async lue => {
+      const s = lueLista(await lue("listat/salkku.json"), "listat/salkku.json");
+      const u = lueLista(await lue("listat/seuranta.json"), "listat/seuranta.json");
+      const lahde = o.lista === "salkku" ? s : u, kohdeD = kohde === "salkku" ? s : u;
+      const rivi = lahde.osakkeet.find(r => r.ticker === t);
+      if (!rivi) throw new TallennusEste(`${t} ei ole enää listalla.`);
+      if (kohde === o.lista) rivi.ryhma = ryhma;
+      else {
+        lahde.osakkeet.splice(lahde.osakkeet.indexOf(rivi), 1);
+        kohdeD.osakkeet = kohdeD.osakkeet.filter(r => r.ticker !== t);
+        const { ostohinta, maara, ostopvm, huom: h, ...perus } = rivi;
+        const uusi = { ...perus, ryhma };
+        if (kohde === "salkku") Object.assign(uusi, { ostohinta: null, maara: null, ostopvm: null });
+        uusi.huom = h ?? "";
+        kohdeD.osakkeet.push(uusi);
+      }
+      if (Array.isArray(u.ryhmat) && !u.ryhmat.includes(ryhma) && (kohde === "seuranta")) u.ryhmat.push(ryhma);
+      return { "listat/salkku.json": muotoileLista(s), "listat/seuranta.json": muotoileLista(u) };
+    }, "Siirretty");
+  };
+}
+
+function lomakeOmistus(t) {
+  const o = etsiRivi(t);
+  avaa(`${otsikko(`${esc(t)}: ostohinta ja määrä`)}
+    <p class="m">Lähtötiedot omistuksesta (esim. ennen agenttia tehdyt ostot). Uudet ostot ja myynnit kannattaa kirjata Kirjaa kauppa -toiminnolla, jolloin ne menevät myös oppimislokiin.</p>
+    <div class="kaksi"><div><label for="o-hinta">Ostohinta (${esc(L(t)?.kurssi?.valuutta || L(t)?.valuutta || "")})</label><input id="o-hinta" inputmode="decimal" value="${o.ostohinta ?? ""}"></div>
+    <div><label for="o-maara">Määrä (kpl)</label><input id="o-maara" inputmode="decimal" value="${o.maara ?? ""}"></div></div>
+    <label for="o-pvm">Ostopäivä</label><input id="o-pvm" type="date" value="${esc(o.ostopvm || "")}">
+    <div class="virhe"></div>
+    <div class="napit" style="margin-top:12px"><button class="ensisij" id="o-ok">Tallenna</button><button data-sulje>Peruuta</button></div>`);
+  kentta("o-ok").onclick = ev => {
+    const h = luku(kentta("o-hinta").value), m = luku(kentta("o-maara").value), pvm = kentta("o-pvm").value || null;
+    if (h === undefined || (h !== null && h <= 0)) return naytaVirhe("Ostohinnan pitää olla positiivinen luku (tai tyhjä).");
+    if (m === undefined || (m !== null && m <= 0)) return naytaVirhe("Määrän pitää olla positiivinen luku (tai tyhjä).");
+    suorita(ev.target, `${t} ostohinta ${h ?? "–"} ja määrä ${m ?? "–"}`, async lue => {
+      const d = lueLista(await lue("listat/salkku.json"), "listat/salkku.json");
+      const r = d.osakkeet.find(x => x.ticker === t);
+      if (!r) throw new TallennusEste(`${t} ei ole enää salkussa.`);
+      Object.assign(r, { ostohinta: h, maara: m, ostopvm: pvm });
+      return { "listat/salkku.json": muotoileLista(d) };
+    }, "Ostohinta ja määrä tallennettu");
+  };
+}
+// "" -> null, kelvollinen luku -> Number, muu -> undefined
+function luku(s) { s = String(s).trim().replace(/\s/g, "").replace(",", "."); if (!s) return null; const n = Number(s); return Number.isFinite(n) ? n : undefined; }
+
+function lomakeKauppa(t) {
+  const vaihtoehdot = jarjesta(kaikkiRivit()).map(o => `<option value="${esc(o.ticker)}" ${o.ticker === t ? "selected" : ""}>${esc(o.ticker)} · ${o.lista === "salkku" ? "salkku" : "seuranta"}</option>`).join("");
+  avaa(`${otsikko("Kirjaa kauppa")}
+    <p class="m">Kirjaa Nordnetissa tekemäsi osto tai myynti. Osto päivittää ostohinnan (painotettu keskiarvo) ja määrän; myynti nollaan siirtää osakkeen salkusta seurantaan.</p>
+    <div class="kaksi"><div><label for="k-t">Osake</label><select id="k-t">${vaihtoehdot}</select></div>
+    <div><label for="k-tap">Tapahtuma</label><select id="k-tap"><option value="osto">Osto</option><option value="myynti">Myynti</option></select></div></div>
+    <div class="kaksi"><div><label for="k-hinta">Hinta / kpl</label><input id="k-hinta" inputmode="decimal"></div>
+    <div><label for="k-maara">Määrä (kpl)</label><input id="k-maara" inputmode="decimal"></div></div>
+    <label id="k-kaikki-l" style="display:none"><input type="checkbox" id="k-kaikki" style="width:auto;min-height:0;margin-right:6px">Myy kaikki (koko omistus)</label>
+    <div class="kaksi"><div><label for="k-pvm">Päivä</label><input id="k-pvm" type="date" value="${tanaan()}"></div>
+    <div><label for="k-val">Valuutta</label><input id="k-val"></div></div>
+    <label for="k-huom">Huomautus (vapaaehtoinen)</label><input id="k-huom">
+    <p class="m" id="k-omistus"></p>
+    <div class="virhe"></div>
+    <div class="napit" style="margin-top:12px"><button class="ensisij" id="k-ok">Kirjaa</button><button data-sulje>Peruuta</button></div>`);
+  const paivita = () => {
+    const tt = kentta("k-t").value, o = etsiRivi(tt), l = L(tt);
+    kentta("k-val").value = l?.kurssi?.valuutta || l?.valuutta || "";
+    if (!kentta("k-hinta").value && l?.kurssi?.paatos) kentta("k-hinta").placeholder = String(l.kurssi.paatos).replace(".", ",");
+    const myynti = kentta("k-tap").value === "myynti";
+    kentta("k-kaikki-l").style.display = myynti ? "" : "none";
+    kentta("k-omistus").textContent = o?.lista === "salkku" ? `Omistus nyt: ${o.maara != null ? o.maara + " kpl" : "määrä ei tiedossa"}${o.ostohinta != null ? " á " + hinta(o.ostohinta) : ""}` : "Osake on seurannassa; osto siirtää sen salkkuun.";
+  };
+  kentta("k-t").onchange = paivita; kentta("k-tap").onchange = paivita;
+  kentta("k-kaikki").onchange = () => { kentta("k-maara").disabled = kentta("k-kaikki").checked; };
+  paivita();
+  kentta("k-ok").onclick = ev => {
+    const k = {
+      id: null, pvm: kentta("k-pvm").value, ticker: kentta("k-t").value, tapahtuma: kentta("k-tap").value,
+      hinta: luku(kentta("k-hinta").value), maara: luku(kentta("k-maara").value),
+      valuutta: kentta("k-val").value.trim() || null, huom: kentta("k-huom").value.trim(),
+    };
+    if (k.tapahtuma === "myynti" && kentta("k-kaikki").checked) { k.kaikki = true; if (k.maara == null) k.maara = etsiRivi(k.ticker)?.maara ?? null; }
+    if (!k.ticker) return naytaVirhe("Valitse osake.");
+    if (!k.pvm) return naytaVirhe("Anna päivä.");
+    if (k.pvm > tanaan()) return naytaVirhe("Päivä ei voi olla tulevaisuudessa.");
+    if (!(k.hinta > 0)) return naytaVirhe("Hinnan pitää olla positiivinen luku.");
+    if (!k.kaikki && !(k.maara > 0)) return naytaVirhe("Määrän pitää olla positiivinen luku.");
+    k.id = `${new Date().toISOString()}-${k.ticker}`;
+    k.kirjattu = new Date().toISOString();
+    suorita(ev.target, `${k.tapahtuma} ${k.ticker} ${k.kaikki ? "kaikki" : k.maara} á ${k.hinta}${k.valuutta ? " " + k.valuutta : ""}`, async lue => {
+      const s = lueLista(await lue("listat/salkku.json"), "listat/salkku.json");
+      const u = lueLista(await lue("listat/seuranta.json"), "listat/seuranta.json");
+      const vanhat = await lue("listat/kaupat.jsonl") || "";
+      sovellaKauppa(s, u, k);
+      s.kaupat_kasitelty = [...(s.kaupat_kasitelty || []), k.id];
+      const rivi = pyJson(k) + "\n";
+      return { "listat/salkku.json": muotoileLista(s), "listat/seuranta.json": muotoileLista(u),
+        "listat/kaupat.jsonl": (vanhat && !vanhat.endsWith("\n") ? vanhat + "\n" : vanhat) + rivi };
+    }, "Kauppa kirjattu");
+  };
+}
+
+// Päivitä-nappi (arkkitehtuuri 9.2): jonorivi (varatie: aamun rutiini) ja
+// workflow_dispatch -> pyydetty.yml (Claude API, kulukatto). Tulos seurataan
+// merkistä data/ajot/pyydetty-<ticker>.json.
+const PYYNNOT = {};
+function kuukaudenKulut() {
+  const kk = tanaan().slice(0, 7);
+  return S.kulut.filter(r => String(r.luotu || r.pvm || "").startsWith(kk)).reduce((s, r) => s + (Number(r.eur) || 0), 0);
+}
+function lomakePaivita(t) {
+  if (PYYNNOT[t]?.tila === "käynnissä") return ilmoita(`${t}: analyysi on jo käynnissä.`, 6000);
+  const kulu = kuukaudenKulut(), katto = S.cfg.kulukatto, arvio = S.cfg.arvioMax ?? 1;
+  const taynna = katto != null && kulu + arvio > katto;
+  const eiDataa = !L(t);                 // listalle juuri lisätty: Päivitä-ajo hakee datan ensin
+  const vainJonoon = taynna;
+  avaa(`${otsikko(`Päivitä analyysi: ${esc(t)}`)}
+    ${taynna && eiDataa
+      ? `<p>Budjetti täynnä: ${nf(kulu, 2)} € / ${nf(katto, 0)} € tässä kuussa. ${esc(t)} on uusi osake: pyyntö lisätään jonoon, ja Claude-rutiini tekee syväanalyysin, kun päiväajo (ti–la klo 6) on hakenut datan.</p>`
+      : eiDataa
+      ? `<p>${esc(t)} on uusi osake: agentti hakee ensin sen datan ja laskee pisteet, ja sitten Claude tekee syväanalyysin (600–900 sanaa). Valmistuu yleensä 5–12 minuutissa, ja tulos näkyy tällä sivulla.</p>
+         <p class="m">Kulu noin 0,10–${nf(arvio, 2)} € · tässä kuussa ${nf(kulu, 2)} € / ${katto != null ? nf(katto, 0) + " €" : "katto ei tiedossa"}. Jos käynnistys ei onnistu, pyyntö jää jonoon.</p>`
+      : taynna
+      ? `<p>Budjetti täynnä: ${nf(kulu, 2)} € / ${nf(katto, 0)} € tässä kuussa. Osake lisätään analyysijonoon, ja syväanalyysi tulee Claude-rutiinista (tunnin välein päivisin) ilman API-kuluja.</p>`
+      : `<p>Claude tekee osakkeesta syväanalyysin (600–900 sanaa) nyt. Valmistuu yleensä 3–10 minuutissa, ja tulos näkyy tällä sivulla.</p>
+         <p class="m">Kulu noin 0,10–${nf(arvio, 2)} € · tässä kuussa ${nf(kulu, 2)} € / ${katto != null ? nf(katto, 0) + " €" : "katto ei tiedossa"}. Jos käynnistys ei onnistu, pyyntö jää jonoon ja analyysi tulee Claude-rutiinista tunnin sisällä (päivisin).</p>`}
+    <div class="virhe"></div>
+    <div class="napit"><button class="ensisij" id="a-ok">${vainJonoon ? "Lisää jonoon" : "Aloita analyysi"}</button><button data-sulje>Peruuta</button></div>`);
+  kentta("a-ok").onclick = ev => suorita(ev.target, `analyysipyyntö ${t}`, async lue => {
+    const teksti = await lue("data/analyysijono.json");
+    const d = teksti ? JSON.parse(teksti) : { versio: 1, luotu: null, jono: [] };
+    if (d.versio !== 1 || !Array.isArray(d.jono)) throw new TallennusEste("analyysijono.json: tuntematon rakenne");
+    const vanha = d.jono.find(r => r.ticker === t && r.tila !== "virhe");
+    if (vanha && vanha.syvyys === "syva") return null;               // pyyntö on jo jonossa
+    const nyt = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+    if (vanha) vanha.syvyys = "syva";
+    else {
+      d.jono = d.jono.filter(r => r.ticker !== t);                     // virhetilainen rivi pois
+      d.jono.push({ ticker: t, syy: "pyydetty", syvyys: "syva", lisatty: nyt, yrityksia: 0, huom: "Päivitä-nappi" });
+    }
+    d.luotu = nyt;
+    return { "data/analyysijono.json": JSON.stringify(d, null, 1) + "\n" };
+  }, taynna ? (eiDataa ? "Lisätty jonoon. Analyysi tehdään, kun päiväajo on hakenut datan."
+    : "Lisätty jonoon. Analyysi tulee Claude-rutiinista.") : "Pyyntö tallennettu, käynnistetään analyysi…",
+  vainJonoon ? null : () => kaynnistaAnalyysi(t));
+}
+async function kaynnistaAnalyysi(t) {
+  const alku = new Date(Date.now() - 60e3).toISOString().replace(/\.\d+Z$/, "Z");
+  try {
+    await api("POST", "/actions/workflows/pyydetty.yml/dispatches", { ref: AS.haara, inputs: { ticker: t } });
+  } catch (e) {
+    PYYNNOT[t] = { tila: "virhe", viesti: e.status === 403 || e.status === 404
+      ? "Analyysin käynnistys estettiin: tunnisteelta puuttuu oikeus Actions: Read and write. Pyyntö on jonossa, ja analyysi tulee Claude-rutiinista tunnin sisällä (päivisin)."
+      : `Käynnistys epäonnistui (${e.message}). Pyyntö on jonossa, ja analyysi tulee Claude-rutiinista tunnin sisällä (päivisin).` };
+    ilmoita(PYYNNOT[t].viesti, 12000);
+    piirra();
+    return;
+  }
+  PYYNNOT[t] = { tila: "käynnissä", alku, aloitettu: new Date() };
+  ilmoita(`${t}: analyysi käynnistetty. Tulos näkyy osakesivulla, kun se valmistuu.`, 8000);
+  piirra();
+  const raja = Date.now() + 25 * 60e3;
+  while (Date.now() < raja) {
+    await new Promise(r => setTimeout(r, 20000));
+    let m = null;
+    try { m = await lueJson(`data/ajot/pyydetty-${tiedostonimi(t)}.json`); } catch (e) { continue; }
+    if (!m || !m.luotu || m.luotu < alku) continue;
+    PYYNNOT[t] = { tila: m.tila, viesti: m.viesti, luotu: m.luotu };
+    if (m.tila === "ok") await lataaKaikki();
+    ilmoita(`${t}: ${m.tila === "ok" ? "analyysi valmis" : m.viesti}`, 10000);
+    piirra();
+    return;
+  }
+  PYYNNOT[t] = { tila: "aikakatkaisu", viesti: "Tulosta ei kuulunut 25 minuutissa. Pyyntö on jonossa: seuraava Päivitä-ajo tai Claude-rutiini (tunnin välein päivisin) tekee analyysin. Lataa sivu myöhemmin uudelleen." };
+  piirra();
+}
+function pyyntoHtml(t) {
+  const p = PYYNNOT[t];
+  if (!p) return "";
+  if (p.tila === "käynnissä") return `<p class="m">Analyysi käynnissä (aloitettu klo ${p.aloitettu.toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit" })}). Sivu päivittyy, kun tulos valmistuu.</p>`;
+  if (p.tila === "ok" || p.tila === "odottaa_dataa") return `<p class="m">${esc(p.viesti || "Analyysi valmis.")}</p>`;
+  return `<p class="m neg">${esc(p.viesti || p.tila)}</p>`;
+}
+
+// Ehdotukset (seula vaiheessa 10). Rivin muoto: {ticker, nimi, porssi, ryhma, tyyppi, tunnukset, ...}.
+function lomakeEhdotus(t, kohde) {
+  const e = (S.ehdotukset?.osakkeet || []).find(x => x.ticker === t);
+  if (!e) return;
+  if (kohde === "hylkaa") {
+    const kk = S.cfg.hylkaysKk ?? 3;
+    avaa(`${otsikko(`Hylkää ${esc(t)}`)}<p>Hylkäys poistaa ehdotuksen ja estää sen toistumisen ${kk} kuukaudeksi. Se kirjautuu oppimislokiin.</p>
+      <label for="h-syy">Syy (vapaaehtoinen)</label><input id="h-syy"><div class="virhe"></div>
+      <div class="napit" style="margin-top:12px"><button class="vaara" id="h-ok">Hylkää</button><button data-sulje>Peruuta</button></div>`);
+    kentta("h-ok").onclick = ev => suorita(ev.target, `hylätty ehdotus ${t}`, async lue => {
+      const ed = lueLista(await lue("listat/ehdotukset.json"), "listat/ehdotukset.json");
+      const hyl = JSON.parse(await lue("listat/hylatyt.json") || '{"versio":1,"osakkeet":[]}');
+      const rivi = ed.osakkeet.find(x => x.ticker === t);
+      if (!rivi) throw new TallennusEste(`${t} ei ole enää ehdotuksissa.`);
+      ed.osakkeet = ed.osakkeet.filter(x => x.ticker !== t);
+      const asti = new Date(); asti.setMonth(asti.getMonth() + kk);
+      hyl.osakkeet = (hyl.osakkeet || []).filter(x => x.ticker !== t);
+      hyl.osakkeet.push({ ticker: t, nimi: rivi.nimi, pvm: tanaan(), esto_asti: asti.toISOString().slice(0, 10), syy: kentta("h-syy").value.trim(),
+        piste: L(t)?.pisteet?.kokonais ?? rivi.piste ?? null, signaali: L(t)?.signaali?.arvo ?? rivi.signaali ?? null });
+      return { "listat/ehdotukset.json": muotoileLista(ed), "listat/hylatyt.json": muotoileLista(hyl) };
+    }, `${t} hylätty`);
+    return;
+  }
+  avaa(`${otsikko(`${esc(t)} ${kohde === "salkku" ? "salkkuun" : "seurantaan"}`)}
+    <label for="e-ryhma">Ryhmä</label><select id="e-ryhma">${ryhmaVaihtoehdot(e.ryhma)}</select>
+    <div><label for="e-uusiryhma">Uuden ryhmän nimi</label><input id="e-uusiryhma"></div>
+    ${kohde === "salkku" ? `<p class="m">Jos ostit osakkeen, kirjaa osto siirron jälkeen Kirjaa kauppa -toiminnolla.</p>` : ""}
+    <div class="virhe"></div>
+    <div class="napit" style="margin-top:12px"><button class="ensisij" id="e-ok">Siirrä</button><button data-sulje>Peruuta</button></div>`);
+  kytkeUusiRyhma("e-ryhma", "e-uusiryhma");
+  kentta("e-ok").onclick = ev => {
+    const ryhma = ryhmaArvo("e-ryhma", "e-uusiryhma");
+    if (!ryhma) return naytaVirhe("Valitse tai anna ryhmä.");
+    const polku = `listat/${kohde}.json`;
+    suorita(ev.target, `ehdotus ${t} ${kohde === "salkku" ? "salkkuun" : "seurantaan"} (${ryhma})`, async lue => {
+      const ed = lueLista(await lue("listat/ehdotukset.json"), "listat/ehdotukset.json");
+      const d = lueLista(await lue(polku), polku);
+      const rivi = ed.osakkeet.find(x => x.ticker === t);
+      if (!rivi) throw new TallennusEste(`${t} ei ole enää ehdotuksissa.`);
+      if (d.osakkeet.some(x => x.ticker === t)) throw new TallennusEste(`${t} on jo listalla.`);
+      ed.osakkeet = ed.osakkeet.filter(x => x.ticker !== t);
+      const uusi = { ticker: rivi.ticker, nimi: rivi.nimi, porssi: rivi.porssi || "", ryhma, tyyppi: rivi.tyyppi || "osake",
+        tunnukset: rivi.tunnukset || { kurssi: rivi.ticker, tilinpaatos: rivi.ticker } };
+      if (kohde === "salkku") Object.assign(uusi, { ostohinta: null, maara: null, ostopvm: null });
+      uusi.huom = `ehdotus ${tanaan()}`;
+      d.osakkeet.push(uusi);
+      if (kohde === "seuranta" && Array.isArray(d.ryhmat) && !d.ryhmat.includes(ryhma)) d.ryhmat.push(ryhma);
+      return { "listat/ehdotukset.json": muotoileLista(ed), [polku]: muotoileLista(d) };
+    }, `${t} siirretty`);
+  };
+}
+
+// ---------------------------------------------------------------- kirjautuminen
+function naytaKirjautuminen(viesti) {
+  document.body.classList.remove("nayta-osake");
+  document.body.classList.add("ulos");
+  document.getElementById("osake").innerHTML = "";
+  document.getElementById("alareuna").innerHTML = "";
+  document.getElementById("markkina").textContent = "";
+  document.getElementById("lista").innerHTML = `<div class="osio" style="max-width:520px">
+    <h2>Kirjaudu</h2>
+    <p class="m">Liitä GitHubin fine-grained-tunniste (vain agentin repo, oikeudet Contents: Read and write ja Päivitä-nappia varten Actions: Read and write). Tunniste ja repon nimi tallentuvat vain tämän selaimen muistiin, eivät koskaan repoon.</p>
+    <label for="k-token">Tunniste</label><input id="k-token" type="password" autocomplete="off" placeholder="github_pat_…">
+    <label for="k-repo">Repo</label><input id="k-repo" value="${esc(AS.repo)}" placeholder="omistaja/repo" autocapitalize="none" autocomplete="off">
+    <div class="virhe">${esc(viesti || "")}</div>
+    <div class="napit" style="margin-top:12px"><button class="ensisij" id="k-ok">Kirjaudu</button></div></div>`;
+  kentta("k-ok").onclick = async () => {
+    const token = kentta("k-token").value.trim(), repo = kentta("k-repo").value.trim();
+    if (!token) return naytaVirheKirj("Liitä tunniste.");
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return naytaVirheKirj("Repo muodossa omistaja/nimi.");
+    lsKirjoita("a6.token", token); lsKirjoita("a6.repo", repo);
+    try { await api("GET", ""); } catch (e) { lsKirjoita("a6.token", null); return naytaVirheKirj(`Kirjautuminen ei onnistunut: ${e.message}`); }
+    kaynnista();
+  };
+}
+function naytaVirheKirj(t) { const el = document.querySelector("#lista .virhe"); if (el) el.textContent = t; }
+
+function lomakeAsetukset() {
+  avaa(`${otsikko("Asetukset")}
+    <p class="m">Repo ${esc(AS.repo)} · haara ${esc(AS.haara)} · tunniste ${AS.token ? "tallennettu tähän selaimeen" : "puuttuu"}.</p>
+    <label for="as-haara">Haara</label><input id="as-haara" value="${esc(AS.haara)}">
+    <label for="as-teema">Teema</label><select id="as-teema"><option value="">Järjestelmän mukaan</option><option value="vaalea" ${lsLue("a6.teema") === "vaalea" ? "selected" : ""}>Vaalea</option></select>
+    <div class="virhe"></div>
+    <div class="napit" style="margin-top:12px"><button class="ensisij" id="as-ok">Tallenna</button><button class="vaara" id="as-ulos">Kirjaudu ulos</button><button data-sulje>Sulje</button></div>
+    <p class="m" style="margin-top:14px">Kirjaudu ulos poistaa tunnisteen tästä selaimesta. Jos laite katoaa, peru tunniste GitHubissa: Settings → Developer settings → Fine-grained tokens.</p>`);
+  kentta("as-ok").onclick = () => {
+    lsKirjoita("a6.haara", kentta("as-haara").value.trim() || null);
+    lsKirjoita("a6.teema", kentta("as-teema").value || null); asetaTeema();
+    sulje(); kaynnista();
+  };
+  kentta("as-ulos").onclick = () => { lsKirjoita("a6.token", null); S.latest = S.salkku = S.seuranta = null; sulje(); naytaKirjautuminen(); };
+}
+function asetaTeema() { const t = lsLue("a6.teema"); t ? document.documentElement.setAttribute("data-teema", t) : document.documentElement.removeAttribute("data-teema"); }
+
+// ---------------------------------------------------------------- tapahtumat
+document.addEventListener("click", ev => {
+  const el = ev.target.closest("[data-sulje], [data-toiminto], [data-ryhma], .oa");
+  if (!el) return;
+  if (el.hasAttribute("data-sulje")) return sulje();
+  if (el.dataset.ryhma != null && el.classList.contains("ryhma")) {
+    const r = el.dataset.ryhma;
+    S.ryhmatAuki.has(r) ? S.ryhmatAuki.delete(r) : S.ryhmatAuki.add(r);
+    lsKirjoita("a6.ryhmat", JSON.stringify([...S.ryhmatAuki]));
+    return piirra();
+  }
+  if (el.classList.contains("oa")) return el.classList.toggle("auki");
+  const t = el.dataset.t;
+  switch (el.dataset.toiminto) {
+    case "lisaa": return lomakeLisaa(el.dataset.lista);
+    case "kauppa": return lomakeKauppa(t || salkunRivit()[0]?.ticker);
+    case "omistus": return lomakeOmistus(t);
+    case "siirra": return lomakeSiirra(t);
+    case "poista": return lomakePoista(t);
+    case "analyysi": return lomakePaivita(t);
+    case "yhtio": return avaa(naytaYhtio(t));
+    case "ehd-seuranta": return lomakeEhdotus(t, "seuranta");
+    case "ehd-salkku": return lomakeEhdotus(t, "salkku");
+    case "ehd-hylkaa": return lomakeEhdotus(t, "hylkaa");
+  }
+});
+document.getElementById("modaali").addEventListener("click", ev => { if (ev.target.id === "modaali") sulje(); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") sulje(); });
+document.getElementById("asetukset").onclick = () => AS.token ? lomakeAsetukset() : naytaKirjautuminen();
+document.getElementById("paivita-sivu").onclick = () => kaynnista(true);
+window.addEventListener("hashchange", () => { sulje(); if (S.latest || S.salkku) piirra(); });
+function lueRyhmatAuki() { try { return new Set(JSON.parse(lsLue("a6.ryhmat") || "[]")); } catch (e) { return new Set(); } }
+
+async function kaynnista(ilmoitaValmis) {
+  asetaTeema();
+  if (!AS.token || !AS.repo) return naytaKirjautuminen();
+  if (!S.latest && !S.salkku) document.getElementById("lista").innerHTML = `<div class="lataa">Ladataan…</div>`;
+  try { await lataaKaikki(); }
+  catch (e) { S.virheet.push(e.message); }
+  if (S.virheet.some(v => /401/.test(v))) return naytaKirjautuminen("Tunniste ei kelpaa tai on vanhentunut. Liitä uusi tunniste.");
+  piirra();
+  if (ilmoitaValmis) ilmoita("Data haettu");
+}
+kaynnista();
+</script>
+</body>
+</html>
